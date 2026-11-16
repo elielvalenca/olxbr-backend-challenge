@@ -1,0 +1,51 @@
+{
+  "name": "listings-service",
+  "version": "0.1.0",
+  "description": "Inserção, listagem e moderação assíncrona de anúncios",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "engines": {
+    "node": ">=22 <23"
+  },
+  "scripts": {
+    "build": "nest build",
+    "start": "nest start",
+    "start:dev": "nest start --watch",
+    "start:worker": "nest start --entryFile worker",
+    "start:worker:dev": "nest start --watch --entryFile worker",
+    "start:prod": "node dist/main.js",
+    "start:worker:prod": "node dist/worker.js",
+    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
+    "lint": "oxlint --type-aware src/ test/",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "vitest run --config ./vitest.config.e2e.ts"
+  },
+  "dependencies": {
+    "@nestjs/common": "^12.5.0",
+    "@nestjs/config": "^12.1.1",
+    "@nestjs/core": "^12.5.0",
+    "@nestjs/platform-express": "^12.5.0",
+    "@nestjs/swagger": "^12.1.2",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^12.0.13",
+    "@nestjs/schematics": "^12.0.13",
+    "@nestjs/testing": "^12.5.0",
+    "@types/express": "^5.0.6",
+    "@types/node": "^22.20.5",
+    "@types/supertest": "^7.2.1",
+    "oxlint": "^1.93.0",
+    "oxlint-tsgolint": "^7.0.2007",
+    "prettier": "^3.10.1",
+    "supertest": "^7.3.2",
+    "typescript": "^6.0.3",
+    "vite": "^8.3.8",
+    "vitest": "^4.1.12"
+  }
+}

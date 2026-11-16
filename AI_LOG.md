@@ -23,3 +23,9 @@ Horários no fuso local. Detalhes das decisões em [DECISIONS.md](DECISIONS.md);
 - `19:51` **descarte** — D9 — removida a citação de TypeORM como escolha provável em produção; ORM seria revisto com RFC
 - `19:51` **marco** — Desenho da fila e observabilidade fechados na SPEC
 - `19:54` **marco** — Commit 1/4: docs (spec, AGENTS, CLAUDE, entregáveis)
+- `19:57` **validacao** — Scaffold do Nest 12 + docs oficiais: ESM puro, Vitest e oxlint por padrão; pacotes @nestjs/outbox, @nestjs/resilience, @nestjs/drizzle; instrumentação OTel do Nest ainda sem suporte ao v12
+- `19:57` **correcao-ia** — D10 — IA afirmou que Jest é o padrão do NestJS; no Nest 12 o padrão é Vitest (conhecimento desatualizado)
+- `19:57` **proposta** — IA sugeriu Vitest, @nestjs/outbox com transporte BullMQ e @nestjs/resilience no lugar de outbox próprio e opossum; aguardando decisão
+- `20:00` **decisao** — D5/D10/D12 — Vitest, oxlint, @nestjs/outbox com transporte BullMQ, @nestjs/resilience; OTel + otel-lgtm mantidos (Observe descartado por ser SaaS)
+- `20:02` **validacao** — Bootstrap: typecheck, oxlint, 3 testes unitários (config), 1 e2e (/health), build e smoke test de API (/health, /docs) e worker sob Node 22.17
+- `20:02` **marco** — Commit 2/5: docs do Nest 12; commit 3/5: bootstrap NestJS

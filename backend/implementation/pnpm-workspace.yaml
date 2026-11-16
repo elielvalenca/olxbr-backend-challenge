@@ -1,0 +1,3 @@
+allowBuilds:
+  # telemetria do swagger-ui; não precisa rodar script de instalação
+  "@scarf/scarf": false
