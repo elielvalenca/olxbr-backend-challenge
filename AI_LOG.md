@@ -29,3 +29,5 @@ Horários no fuso local. Detalhes das decisões em [DECISIONS.md](DECISIONS.md);
 - `20:00` **decisao** — D5/D10/D12 — Vitest, oxlint, @nestjs/outbox com transporte BullMQ, @nestjs/resilience; OTel + otel-lgtm mantidos (Observe descartado por ser SaaS)
 - `20:02` **validacao** — Bootstrap: typecheck, oxlint, 3 testes unitários (config), 1 e2e (/health), build e smoke test de API (/health, /docs) e worker sob Node 22.17
 - `20:02` **marco** — Commit 2/5: docs do Nest 12; commit 3/5: bootstrap NestJS
+- `20:06` **validacao** — Compose: postgres 18, redis 8.8 (noeviction), mock e otel-lgtm 0.40 saudáveis; mock confirmou rejection_reason e 429 forçado
+- `20:06` **marco** — Commit 4/5: infraestrutura local

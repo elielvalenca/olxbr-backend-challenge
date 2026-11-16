@@ -1,0 +1,61 @@
+# Dependências locais do serviço de anúncios.
+# API e worker rodam no host (pnpm start:dev / start:worker:dev) até ganharem imagem própria.
+name: listings
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-listings}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-listings}
+      POSTGRES_DB: ${POSTGRES_DB:-listings}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Filas (BullMQ) e projeção de leitura do detalhe.
+  redis:
+    image: redis:8.8-alpine
+    # BullMQ exige que o Redis nunca descarte chaves por pressão de memória.
+    command: ["redis-server", "--maxmemory-policy", "noeviction", "--appendonly", "yes"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Mock da moderação, construído a partir de backend/api-mock sem alterações.
+  moderation-api:
+    build: ../api-mock
+    environment:
+      ERROR_RATE: ${MOCK_ERROR_RATE:-0.2}
+      RATE_LIMIT_RPS: ${MOCK_RATE_LIMIT_RPS:-5}
+    ports:
+      - "${MODERATION_PORT:-8787}:8787"
+    cap_drop:
+      - ALL
+
+  # Coletor OTel + Prometheus + Tempo + Loki + Grafana num único container.
+  otel-lgtm:
+    image: grafana/otel-lgtm:0.40.0
+    ports:
+      - "${GRAFANA_PORT:-3001}:3000" # Grafana (3000 fica para a API)
+      - "4317:4317" # OTLP gRPC
+      - "4318:4318" # OTLP HTTP
+    volumes:
+      - lgtm-data:/data
+
+volumes:
+  postgres-data:
+  redis-data:
+  lgtm-data:

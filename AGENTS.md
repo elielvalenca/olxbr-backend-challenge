@@ -103,10 +103,12 @@ Em `backend/implementation/`, com Node 22 (`nvm use`):
 
 | Comando | O que faz |
 | --- | --- |
+| `cp .env.example .env` | Configuração local |
+| `docker compose up -d --wait` | Postgres, Redis, mock da moderação (`:8787`) e Grafana/OTel (`:3001`) |
 | `pnpm install` | Instala dependências |
 | `pnpm start:dev` / `pnpm start:worker:dev` | API (Swagger em `/docs`) / worker, em modo watch |
 | `pnpm build` | Compila para `dist/` (`main.js` e `worker.js`) |
 | `pnpm typecheck` · `pnpm lint` · `pnpm format` | Tipos, oxlint, Prettier |
 | `pnpm test` · `pnpm test:e2e` | Unitários (`*.spec.ts`) · e2e (`test/*.e2e-spec.ts`) |
 
-_A completar: subir ambiente com Docker Compose, seed, gerar JWT, reprocessar jobs falhos._
+_A completar: seed, gerar JWT, reprocessar jobs falhos._
