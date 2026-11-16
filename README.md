@@ -1,5 +1,7 @@
 # Code Challenge — Grupo OLX
 
+> **Entrega:** a implementação e as instruções de execução estão em [`backend/implementation/README.md`](backend/implementation/README.md). Decisões em [`DECISIONS.md`](DECISIONS.md) e uso de IA em [`AI_USAGE.md`](AI_USAGE.md).
+
 Olá! Que bom ter você por aqui.
 
 ## Propósito
