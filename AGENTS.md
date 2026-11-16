@@ -25,11 +25,15 @@ Desafio técnico de backend do Grupo OLX: serviço de **inserção e listagem de
 
 ## Stack
 
-Node 22 (ver `.nvmrc`), pnpm, NestJS, PostgreSQL + Drizzle, Redis (BullMQ + projeção do detalhe), JWT, Swagger (OpenAPI), OpenTelemetry mínimo exportando para `grafana/otel-lgtm` (só painel da fila), Jest + Testcontainers, Docker Compose.
+Node 22 (ver `.nvmrc`), pnpm, NestJS, PostgreSQL + Drizzle, Redis (BullMQ + projeção do detalhe), JWT, Swagger (OpenAPI), OpenTelemetry mínimo exportando para `grafana/otel-lgtm` (só painel da fila), Vitest + Testcontainers, oxlint + Prettier, `@nestjs/outbox`, `@nestjs/resilience`, Docker Compose.
 
-API e worker são processos separados (mesma imagem, entrypoints `main.ts` e `worker.ts`). O desenho da fila (outbox, despachante, `moderation`, `projection`) está em `backend/implementation/SPEC.md`.
+API e worker são processos separados (mesma imagem, entrypoints `main.ts` e `worker.ts`). O desenho da fila (outbox, relay, `moderation`, `projection`) está em `backend/implementation/SPEC.md`.
 
 Fora do escopo (só documentados como evolução): BFF/HMAC, Jaeger, Prometheus dedicado, projeção da listagem, teste A/B. Não adicione sem decisão registrada em `DECISIONS.md`.
+
+## NestJS 12
+
+A versão do NestJS é provavelmente mais nova que o seu conhecimento. Consulte https://docs.nestjs.com/llms.txt antes de assumir APIs. O projeto é **ESM puro**: imports relativos terminam em `.js`, sem `__dirname` (use `import.meta.dirname`), testes com Vitest (`vi.fn()`, não `jest.fn()`). Antes de escrever infraestrutura própria, verifique se há pacote oficial (`@nestjs/outbox`, `@nestjs/resilience`, `@nestjs/drizzle`, `@nestjs/bullmq`, `@nestjs/terminus`).
 
 ## Arquitetura
 
@@ -58,7 +62,7 @@ Status: `draft` → `in_review` → `published` | `rejected`; qualquer versão p
 - `rejected` é **resultado de negócio** (com `rejection_reason` visível). Falhas de integração **nunca** viram `rejected`: o anúncio permanece `in_review`, a falha é registrada e há script de reprocessamento.
 - Versões append-only: `draft` é editável no lugar; editar `published`/`rejected` cria nova versão `draft`; publicar uma nova versão arquiva a anterior.
 - Preço sempre em centavos (`bigint`). Sem validar faixa de preço por categoria — isso é da moderação.
-- Transições válidas ficam no domínio, com teste unitário. Toda transição gera um evento em `listing_audit_events` e, quando relevante, um evento em `outbox_events` na mesma transação.
+- Transições válidas ficam no domínio, com teste unitário. Toda transição gera um evento em `listing_audit_events` e, quando relevante, uma mensagem no outbox (`outbox.add(tx, …)`) na mesma transação.
 - Detalhes completos (tabela de transições, visibilidade, validações) em `backend/implementation/SPEC.md`.
 
 ## Integração com a moderação (mock)
@@ -82,7 +86,7 @@ Regras do adaptador: timeout explícito, retry com backoff só para erros transi
 ## Testes
 
 - Unitários: regras de domínio (validações, transições de status) e classificação de erros do adaptador de moderação.
-- Integração (Jest + Testcontainers): fluxo criar → enviar para revisão → worker → `published`/`rejected`, com Postgres/Redis reais e o mock forçando falhas.
+- Integração (Vitest + Testcontainers): fluxo criar → enviar para revisão → worker → `published`/`rejected`, com Postgres/Redis reais e o mock forçando falhas.
 - Teste comportamento, não implementação. Escolha o que testar pelo risco.
 
 ## OpenSpec

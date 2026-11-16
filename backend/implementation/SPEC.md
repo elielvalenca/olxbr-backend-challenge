@@ -20,7 +20,8 @@ Orçamento de esforço do desafio: 4–6h. Prioridade para o essencial bem resol
 - JWT (sem cadastro de usuário)
 - Swagger / OpenAPI
 - OpenTelemetry mínimo + Grafana (painel da fila)
-- Jest + Testcontainers (testes de integração)
+- Vitest + Testcontainers (testes de integração); oxlint + Prettier
+- `@nestjs/outbox` (outbox transacional) e `@nestjs/resilience` (timeout e circuit breaker)
 - Docker + Docker Compose
 - Arquitetura hexagonal pragmática (ver `AGENTS.md`)
 
@@ -31,7 +32,7 @@ Nota de produção: BullMQ seria provavelmente substituído por SQS. A escolha d
 - `listings` — uma linha por **versão** do anúncio (append-only a partir do envio para revisão)
 - `listing_images` — imagens (URLs) por versão
 - `listing_audit_events` — trilha de transições de status
-- `outbox_events` — eventos gravados na mesma transação das mudanças de status, consumidos pelas filas (ver "Fila")
+- Outbox: tabelas do `@nestjs/outbox` no schema `nest_outbox` (criadas pelo próprio pacote), com mensagens gravadas na mesma transação das mudanças de status (ver "Fila")
 
 Sem tabela de vendedor: o `sub` do JWT é gravado como `seller_id`.
 
@@ -95,14 +96,14 @@ Integração com o mock (`backend/api-mock`) tratada como serviço externo real.
 - ~20% de `500`, limite de 5 req/s com `429` + `Retry-After`, latência de 100–2000 ms.
 - `400` não é recuperável.
 
-Requisitos do cliente: timeout, retry com backoff exponencial para erros transitórios, respeito ao `Retry-After`, circuit breaker (`opossum`), limitador global no worker (BullMQ `limiter`), processamento idempotente.
+Requisitos do cliente: timeout, retry com backoff exponencial para erros transitórios, respeito ao `Retry-After`, circuit breaker (`@nestjs/resilience`), limitador global no worker (BullMQ `limiter`), processamento idempotente.
 
 ### Fila
 
 ```
-API (1 transação) ─► listings + listing_audit_events + outbox_events
+API (1 transação) ─► listings + listing_audit_events + outbox.add()
                                                         │
-              dispatcher (worker) ── polling do outbox ─┤
+        relay do @nestjs/outbox (worker) ── polling ────┤
                     ├─► fila `moderation`  ← listing.submitted
                     └─► fila `projection`  ← listing.published | listing.rejected | listing.archived
 
@@ -111,11 +112,13 @@ moderation worker: limiter 5/s · timeout · circuit breaker · retry
 projection worker: monta o payload do detalhe a partir do Postgres → SET no Redis
 ```
 
-**Outbox e despachante**
+**Outbox e relay (`@nestjs/outbox`)**
 
-- `outbox_events` é gravada na mesma transação da mudança de status.
-- O despachante roda como job repetível do BullMQ (~500 ms, configurável): `SELECT … WHERE dispatched_at IS NULL ORDER BY id FOR UPDATE SKIP LOCKED LIMIT 100`, enfileira com `jobId = outbox.id` (o BullMQ ignora duplicados) e marca `dispatched_at`.
-- Linhas despachadas são mantidas (histórico). **Sem limpeza nesta versão — débito técnico registrado.**
+- `outbox.add(tx, …)` grava a mensagem na mesma transação Drizzle da mudança de status (`PostgresOutboxStore` com `fromDrizzle(db)`, schema `nest_outbox`).
+- O relay do pacote faz polling (`pollInterval` configurável), com lease para várias instâncias, retry com backoff e jitter e tabela de dead letters (`OutboxDeadLetters`: listar, reenfileirar, expurgar).
+- Um `OutboxTransport` próprio publica no BullMQ com `queue.add(topic, payload, { jobId: message.id })`, então republicar a mesma mensagem não duplica o job enquanto ele existir. O `route` escolhe a fila pelo tópico.
+- O relay roda só no worker (`relay.enabled = false` na API).
+- Métricas do outbox via `OutboxRelay.stats()` (pendentes, dead letters, lag).
 
 **Fila `moderation`**
 
@@ -124,24 +127,24 @@ projection worker: monta o payload do detalhe a partir do Postgres → SET no Re
 - Classificação de erros: `5xx` e timeout → retry; `400` → falha imediata (não recuperável).
 - Retry: 5 tentativas, backoff exponencial a partir de 1 s com jitter.
 - `429` e circuito aberto → `worker.rateLimit(ms)` + `Worker.RateLimitError`: pausa o worker **sem consumir tentativa**, respeitando `Retry-After`.
-- Circuit breaker (`opossum`): abre com 50% de erro numa janela de 10 s (mínimo de 5 chamadas), meia-abertura após 10 s.
+- Timeout e circuit breaker com `@nestjs/resilience` (política usada dentro do adaptador via `ResilienceService.execute`): abre com 50% de erro (mínimo de 5 chamadas), meia-abertura após 10 s. O retry do pacote fica desligado (1 tentativa) para não somar com o retry do BullMQ. Os eventos `circuit-open`/`circuit-closed` alimentam a métrica de estado do breaker.
 - Limitador global do BullMQ: 5 jobs/s (compartilhado entre workers via Redis).
 - Falha definitiva: anúncio permanece `in_review`, evento de auditoria de falha, job fica no set `failed` do BullMQ. Script de reprocessamento reenfileira os jobs falhos.
 - Todos os valores acima configuráveis por variável de ambiente.
 
 **Fila `projection`**
 
-- Jobs vindos do outbox usam `jobId = outbox.id`; reconstruções por miss usam deduplicação por `listing_id`.
+- Jobs vindos do outbox usam `jobId = id da mensagem`; reconstruções por miss usam deduplicação por `listing_id`.
 - O job reconstrói o payload a partir do estado atual no Postgres (não do conteúdo do evento) e grava no Redis; arquivamento remove a chave.
 - Concorrência 1 no worker de projeção, para evitar escrita fora de ordem.
 
 **Processos**
 
-API e worker são processos separados, da mesma imagem e base de código, com dois entrypoints (`main.ts` e `worker.ts`) e dois serviços no Compose. O worker roda o despachante e as duas filas.
+API e worker são processos separados, da mesma imagem e base de código, com dois entrypoints (`main.ts` e `worker.ts`) e dois serviços no Compose. O worker roda o relay do outbox e as duas filas.
 
 ## Observabilidade
 
-- OpenTelemetry mínimo: `tracing.ts` com SDK Node e auto-instrumentação (HTTP, Postgres, Redis), carregado antes do bootstrap da API e do worker. O NestJS não provê OTel nativamente.
+- OpenTelemetry mínimo: `tracing.ts` com SDK Node e auto-instrumentação (HTTP, Postgres, Redis), carregado antes do bootstrap da API e do worker. A instrumentação OTel específica do NestJS ainda não suporta o v12; HTTP, `pg` e Redis são instrumentados normalmente. O NestJS Observe (oficial) é SaaS e não recebe OTLP, por isso não é usado.
 - Exportação OTLP para o container `grafana/otel-lgtm` (coletor + Prometheus + Tempo + Grafana em um container, sem configuração própria).
 - Métricas da fila de moderação: profundidade por estado (`getJobCounts`), jobs processados por resultado (aprovado / reprovado / falha), latência da chamada à moderação, estado do circuit breaker, eventos pendentes no outbox.
 - Um painel no Grafana para a fila de moderação, provisionado por arquivo. Sem outros painéis por enquanto.

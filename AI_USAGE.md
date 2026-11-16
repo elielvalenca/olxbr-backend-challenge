@@ -14,6 +14,8 @@
 
 - **A IA propôs** índice parcial no Postgres (ou tabela de projeção) para leitura → **fiz** projeção do detalhe no Redis, atualizada por job via outbox, com timeout e fallback para o banco. **Por quê:** o cache é facilmente gerenciado pelos gatilhos de mudança de status.
 
+- **A IA afirmou** que Jest é o framework de testes padrão do NestJS, e eu aceitei → ao gerar o projeto, o NestJS 12 veio com Vitest, ESM puro e oxlint. **Por quê:** a IA estava desatualizada; a decisão foi revista a partir do scaffold e da documentação oficial.
+
 ## Como validei
 
 - Li o `server.js` do mock em vez de confiar só na doc: encontrei a divergência `reason` x `rejection_reason`, a taxa de erro de 20%, o rate limit e o header `x-mock-force`.

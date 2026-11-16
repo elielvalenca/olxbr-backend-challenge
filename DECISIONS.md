@@ -28,8 +28,8 @@ Decisões técnicas, alternativas descartadas, ambiguidades e trade-offs. A orde
 
 ### D5 — Moderação assíncrona com outbox + BullMQ
 - **Contexto:** o mock tem ~20% de erro, 5 req/s e latência de até 2s; mudar o status no banco e enfileirar no Redis são duas escritas que podem divergir.
-- **Escolha:** tabela de outbox gravada na mesma transação da mudança de status. Um despachante faz **polling** (job repetível do BullMQ, ~500 ms) com `FOR UPDATE SKIP LOCKED` e enfileira com `jobId = outbox.id`, o que torna o reenvio idempotente. Jobs carregam só `{listingId, version}`; o worker relê o banco e descarta se a versão não estiver mais `in_review`. Retry: 5 tentativas com backoff exponencial e jitter; `5xx`/timeout reprocessam, `400` falha na hora; `429` e circuito aberto pausam o worker via `worker.rateLimit()` sem consumir tentativa. Circuit breaker com `opossum`, limitador global do BullMQ de 5 jobs/s.
-- **Alternativas consideradas:** enfileirar direto após o commit — descartado por perder eventos se o processo cair entre o commit e o enqueue. `LISTEN/NOTIFY` — descartado por ser mais uma peça para explicar; polling é mais simples e a latência de ~500 ms é aceitável. Enqueue após commit + varredura de segurança — descartado por criar dois caminhos para a mesma coisa. SQS — escolha mais provável em produção; BullMQ aproveita o Redis já presente no projeto.
+- **Escolha:** outbox transacional com o pacote oficial `@nestjs/outbox`: a mensagem é gravada na mesma transação Drizzle da mudança de status, e o relay do pacote faz **polling** com lease, retry com backoff e dead letters. Um `OutboxTransport` próprio publica no BullMQ com `jobId = id da mensagem`, o que torna a republicação idempotente. Jobs carregam só `{listingId, version}`; o worker relê o banco e descarta se a versão não estiver mais `in_review`. Retry: 5 tentativas com backoff exponencial e jitter; `5xx`/timeout reprocessam, `400` falha na hora; `429` e circuito aberto pausam o worker via `worker.rateLimit()` sem consumir tentativa. Timeout e circuit breaker com `@nestjs/resilience` (retry do pacote desligado para não somar com o do BullMQ), limitador global do BullMQ de 5 jobs/s.
+- **Alternativas consideradas:** enfileirar direto após o commit — descartado por perder eventos se o processo cair entre o commit e o enqueue. Enqueue após commit + varredura de segurança — descartado por criar dois caminhos para a mesma coisa. SQS — escolha mais provável em produção; BullMQ aproveita o Redis já presente no projeto. Outbox e despachante escritos à mão (desenho inicial, com `FOR UPDATE SKIP LOCKED`) — descartado ao descobrir o `@nestjs/outbox` no NestJS 12: ele faz o mesmo polling, já traz retry, dead letters com reenfileiramento e métricas, e a própria documentação recomenda o padrão de transporte para BullMQ que adotamos; menos código nosso para manter e testar. `opossum` — descartado em favor do `@nestjs/resilience`, oficial e com eventos de estado do breaker. `LISTEN/NOTIFY` no lugar do polling — descartado por ser mais uma peça para explicar.
 - **Trade-off:** latência de até um ciclo de polling e consultas periódicas ao banco, em troca de garantia de entrega simples de explicar.
 
 ### D6 — Falha definitiva de integração mantém o anúncio em revisão
@@ -52,20 +52,21 @@ Decisões técnicas, alternativas descartadas, ambiguidades e trade-offs. A orde
 - **Alternativas consideradas:** TypeORM (padrão do NestJS) e Prisma. Num contexto de produção, eu revisaria a escolha de ORM com uma RFC, em vez de assumir o padrão do framework.
 
 ### D10 — Ferramentas de base
-- **Escolha:** pnpm, Jest (padrão do NestJS) e Testcontainers para integração com Postgres/Redis reais. BFF fora do escopo.
+- **Escolha:** NestJS 12 (ESM puro), pnpm, Vitest, oxlint + Prettier e Testcontainers para integração com Postgres/Redis reais. BFF fora do escopo.
+- **Alternativas consideradas:** Jest — escolhido inicialmente por ser "o padrão do NestJS", premissa que veio da IA e estava desatualizada: no NestJS 12 o padrão é Vitest, e Jest com ESM puro exige configuração experimental. ESLint — trocado pelo oxlint, padrão do scaffold, para não manter configuração extra.
 
 ### D11 — API e worker em processos separados
-- **Escolha:** mesma imagem e base de código, dois entrypoints (`main.ts` e `worker.ts`), dois serviços no Compose. O worker roda o despachante do outbox e as filas `moderation` e `projection`.
+- **Escolha:** mesma imagem e base de código, dois entrypoints (`main.ts` e `worker.ts`), dois serviços no Compose. O worker roda o relay do outbox e as filas `moderation` e `projection`.
 - **Alternativas consideradas:** worker no mesmo processo da API — descartado: uma falha ou pico na fila afetaria a API, e não daria para escalar os dois separadamente.
 
 ### D12 — Observabilidade com `grafana/otel-lgtm`
 - **Contexto:** preciso de observabilidade no relay (fila de moderação), sem montar Prometheus e Jaeger separados. O Grafana não armazena métricas; precisa de uma fonte de dados.
-- **Escolha:** OTel SDK Node com auto-instrumentação, exportando OTLP para o container `grafana/otel-lgtm` (coletor + Prometheus + Tempo + Grafana em um container). Métricas da fila: profundidade por estado, jobs por resultado, latência da moderação, estado do circuit breaker e outbox pendente. Um painel provisionado por arquivo.
-- **Alternativas consideradas:** Grafana lendo direto do Postgres — descartado: não enxerga o estado do BullMQ nem do circuit breaker. Prometheus + Jaeger dedicados — mais containers e configuração para o escopo atual.
+- **Escolha:** OTel SDK Node com auto-instrumentação, exportando OTLP para o container `grafana/otel-lgtm` (coletor + Prometheus + Tempo + Grafana em um container). Métricas da fila: profundidade por estado, jobs por resultado, latência da moderação, estado do circuit breaker e outbox pendente. A instrumentação OTel específica do NestJS ainda não suporta o v12; HTTP, `pg` e Redis são instrumentados normalmente. Um painel provisionado por arquivo.
+- **Alternativas consideradas:** NestJS Observe (oficial) — descartado: é SaaS hospedado e não recebe OTLP, e quero tudo rodando localmente. Grafana lendo direto do Postgres — descartado: não enxerga o estado do BullMQ nem do circuit breaker. Prometheus + Jaeger dedicados — mais containers e configuração para o escopo atual.
 
 ## Débitos técnicos
 
-- **Sem limpeza do outbox:** linhas despachadas ficam para sempre em `outbox_events`. Em produção: job de expurgo por idade (ou particionamento por data).
+- **Sem rotina de limpeza do outbox:** não configuramos retenção das mensagens publicadas nem `OutboxInbox.prune()`; dead letters só são expurgadas manualmente (`OutboxDeadLetters.purge`). Em produção: rotina de expurgo por idade.
 - **Sem DLQ dedicada:** jobs falhos ficam no set `failed` do BullMQ e são reprocessados por script (ver D6).
 
 ## Requisitos ambíguos e interpretações
