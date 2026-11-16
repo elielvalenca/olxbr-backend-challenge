@@ -31,3 +31,4 @@ Horários no fuso local. Detalhes das decisões em [DECISIONS.md](DECISIONS.md);
 - `20:02` **marco** — Commit 2/5: docs do Nest 12; commit 3/5: bootstrap NestJS
 - `20:06` **validacao** — Compose: postgres 18, redis 8.8 (noeviction), mock e otel-lgtm 0.40 saudáveis; mock confirmou rejection_reason e 429 forçado
 - `20:06` **marco** — Commit 4/5: infraestrutura local
+- `20:06` **marco** — Commit 5/5: openspec init (Claude Code, artefatos em pt-BR)

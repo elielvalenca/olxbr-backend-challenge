@@ -93,6 +93,8 @@ Regras do adaptador: timeout explícito, retry com backoff só para erros transi
 
 Use OpenSpec para mudanças de **regra de negócio ou nova capacidade**. Não é necessário para correções de bug ou tarefas de infraestrutura (`chore`).
 
+Artefatos em `openspec/` (em pt-BR, ver `openspec/config.yaml`). Fluxo no Claude Code: `/opsx:explore` → `/opsx:propose` → `/opsx:apply` → `/opsx:archive`.
+
 ## Registro de entregáveis
 
 Em toda interação com decisão, divergência, descarte, ambiguidade, correção de algo gerado pela IA, validação ou marco, use a skill `registro-entrega` (`.claude/skills/registro-entrega/`). A timeline é escrita **sempre** via `scripts/log.sh`.
