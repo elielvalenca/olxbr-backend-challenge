@@ -72,3 +72,5 @@ Horários no fuso local. Detalhes das decisões em [DECISIONS.md](DECISIONS.md);
 - `23:08` **validacao** — listing-lifecycle: typecheck, lint, 46 unitários, 12 e2e e 78 de integração passando
 - `23:08` **marco** — listing-lifecycle: 16/16 tasks implementadas (ainda sem commit)
 - `23:10` **marco** — Commit 9: change listing-lifecycle (planejamento + implementação)
+- `23:10` **marco** — listing-lifecycle arquivada (2026-11-16); specs listing-lifecycle, listing-authoring e seller-authentication promovidas a openspec/specs/
+- `23:10` **marco** — Commit 10: arquivamento da listing-lifecycle
