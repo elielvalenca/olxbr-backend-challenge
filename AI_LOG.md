@@ -56,3 +56,6 @@ Horários no fuso local. Detalhes das decisões em [DECISIONS.md](DECISIONS.md);
 - `22:31` **marco** — listing-data-model: 22/22 tasks concluídas; suíte completa verde (10 unit, 1 e2e, 48 int), build ok, openspec validate --strict ok
 - `22:34` **decisao** — Convenção de commits: um único commit por change do OpenSpec, reunindo planejamento (proposal/specs/design/tasks) e implementação; motivo: a confirmar
 - `22:34` **marco** — Commit 7: change listing-data-model (planejamento + implementação)
+- `22:42` **marco** — listing-data-model arquivada (2026-11-16); specs listing-versioning e listing-audit promovidas a openspec/specs/
+- `22:44` **decisao** — Convenção: arquivamento da change em commit próprio (chore), separado do commit de planejamento+implementação; motivo: a confirmar
+- `22:44` **marco** — Commit 8: arquivamento da listing-data-model
