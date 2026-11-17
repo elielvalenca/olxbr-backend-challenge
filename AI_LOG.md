@@ -80,3 +80,4 @@ Horários no fuso local. Detalhes das decisões em [DECISIONS.md](DECISIONS.md);
 - `23:25` **validacao** — int-spec ponta a ponta (7 cenários) + smoke API/worker contra o mock real: 6 publicados, 2 reprovados, 0 falhas
 - `23:25` **marco** — moderation-pipeline implementada (tasks 1–5), sem commit
 - `23:27` **marco** — commit da moderation-pipeline e arquivamento
+- `23:27` **marco** — moderation-pipeline arquivada (3 specs sincronizadas)
