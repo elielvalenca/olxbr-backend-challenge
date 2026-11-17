@@ -39,6 +39,8 @@ export const envSchema = z.object({
   OUTBOX_POLL_INTERVAL_MS: positiveInt(1000),
   LISTINGS_DEFAULT_PAGE_SIZE: positiveInt(20),
   LISTINGS_MAX_PAGE_SIZE: positiveInt(50),
+  DETAIL_CACHE_TIMEOUT_MS: positiveInt(200),
+  DETAIL_CACHE_TTL_SECONDS: positiveInt(86_400),
 });
 
 /** Falha no boot se o limite padrão da listagem exceder o máximo. */

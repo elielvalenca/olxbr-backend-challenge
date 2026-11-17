@@ -3,6 +3,7 @@ import type { AddressInfo } from 'node:net';
 import { ConfigModule } from '@nestjs/config';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { Queue } from 'bullmq';
+import { Redis } from 'ioredis';
 import { asc, eq } from 'drizzle-orm';
 import {
   RedisContainer,
@@ -26,8 +27,11 @@ import {
 } from '../listings/infrastructure/schema.js';
 import { LISTING_REPOSITORY } from '../listings/application/listing-repository.js';
 import type { ListingRepository } from '../listings/application/listing-repository.js';
-import { MODERATION_QUEUE } from './infrastructure/moderation-queue.js';
+import { MODERATION_QUEUE } from '../../shared/queue/queues.js';
 import { reprocessFailedModerations } from './infrastructure/reprocess-failed.js';
+import { ProjectionModule } from '../projection/projection.module.js';
+import { DrizzleListingQueries } from '../listings/infrastructure/drizzle-listing-queries.js';
+import { WorkerOutboxModule } from '../../shared/outbox/worker-outbox.module.js';
 import { ModerationModule } from './moderation.module.js';
 
 type Reply = {
@@ -43,6 +47,7 @@ describe('pipeline de moderação', () => {
   let mock: Server;
   let app: TestingModule;
   let queue: Queue;
+  let cacheRedis: Redis;
   let repository: ListingRepository;
   let reply: (calls: number) => Reply;
   let calls: number;
@@ -83,7 +88,9 @@ describe('pipeline de moderação', () => {
           validate: () => env,
         }),
         AppDatabaseModule,
+        WorkerOutboxModule,
         ModerationModule,
+        ProjectionModule,
       ],
     }).compile();
     await app.init();
@@ -91,9 +98,11 @@ describe('pipeline de moderação', () => {
     queue = new Queue(MODERATION_QUEUE, {
       connection: redisConnection(env.REDIS_URL),
     });
+    cacheRedis = new Redis(env.REDIS_URL);
   });
 
   afterAll(async () => {
+    await cacheRedis.quit();
     await queue.close();
     await app.close();
     await redis.stop();
@@ -147,6 +156,24 @@ describe('pipeline de moderação', () => {
 
     expect(result.status).toBe('published');
     expect(result.publishedAt).not.toBeNull();
+  });
+
+  it('publicar projeta o detalhe no Redis e arquivar o remove', async () => {
+    reply = () => ({ status: 200, json: { status: 'approved' } });
+    const { listingId } = await submitNewListing();
+    const key = `listing:detail:${listingId}`;
+    const projected = () => cacheRedis.get(key);
+
+    expect((await settled(listingId)).status).toBe('published');
+    const raw = await waitFor(projected, (v) => v !== null);
+
+    const fromDb = await new DrizzleListingQueries(testDb.db).findPublished(
+      listingId,
+    );
+    expect(JSON.parse(raw!)).toEqual(JSON.parse(JSON.stringify(fromDb)));
+
+    await repository.archiveAll(listingId, sellerActor('seller-1'));
+    expect(await waitFor(projected, (v) => v === null)).toBeNull();
   });
 
   it('rejeita com o motivo informado', async () => {

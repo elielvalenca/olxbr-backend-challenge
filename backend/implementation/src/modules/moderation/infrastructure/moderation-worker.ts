@@ -19,7 +19,7 @@ import {
   ModerationInvalidRequestError,
   ModerationUnavailableError,
 } from '../application/moderation-gateway.js';
-import { MODERATION_QUEUE } from './moderation-queue.js';
+import { MODERATION_QUEUE } from '../../../shared/queue/queues.js';
 
 /**
  * Consumidor da fila `moderation`. O `Worker` é criado aqui (e não com

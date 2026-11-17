@@ -88,3 +88,7 @@ Horários no fuso local. Detalhes das decisões em [DECISIONS.md](DECISIONS.md);
 - `23:40` **validacao** — listing-queries: typecheck, lint, 72 unit, 31 e2e, 105 int (Testcontainers) e openspec validate passando
 - `23:40` **decisao** — listing-queries: e2e força o status no banco em vez de rodar o worker (pipeline já coberto em moderation-pipeline)
 - `23:41` **marco** — listing-queries commitado (f1bfab3) e arquivado; specs listing-detail e listing-search criadas
+- `23:43` **pedido** — implementar a última change (detail-projection): propose
+- `23:43` **proposta** — detail-projection: só published/archived geram evento (reprovar não muda o detalhe público, D18); job único idempotente; TTL 24h e timeout 200ms (a confirmar)
+- `23:51` **decisao** — D19 — projeção do detalhe: só published/archived geram evento, job idempotente, relay compartilhado roteando por tópico; TTL 24h e timeout 200ms a confirmar
+- `23:51` **validacao** — detail-projection: typecheck, lint, build, 85 unit, 31 e2e, 114 int (Postgres+Redis reais) e openspec validate passando

@@ -122,6 +122,13 @@ Decisões técnicas, alternativas descartadas, ambiguidades e trade-offs. A orde
 - **Trade-off:** o visitante não vê mais anúncios reprovados nem o motivo (divergência do que a SPEC original dizia); em troca, o endpoint público é simples e a projeção no Redis só precisa cobrir `published`.
 - **A confirmar:** `limit` acima do máximo → 400 (em vez de reduzir) e padrões de página 20/50 foram propostos pela IA, sem decisão explícita.
 
+### D19 — Projeção do detalhe público no Redis (change `detail-projection`)
+- **Contexto:** o detalhe público é a leitura mais frequente por anúncio; com a D18 ele é só a versão `published`.
+- **Escolha:** só `listing.published` e `listing.archived` geram mensagem no outbox (mesma transação da mudança de status); reprovar não gera, porque não muda o detalhe público. Um único job idempotente `{ listingId }` (do outbox ou de reconstrução por miss) relê o Postgres e faz `SET` (ou `DEL` se não há versão publicada), com concorrência 1. A API lê do Redis com `commandTimeout` e `enableOfflineQueue: false` e cai para o Postgres em miss, erro ou timeout; só pede reconstrução (`jobId` por anúncio) se o anúncio existe publicado, para ids aleatórios não encherem a fila. O relay e o transport saíram do módulo de moderação para um módulo compartilhado do worker, que roteia por tópico para as filas `moderation` e `projection`.
+- **Alternativas consideradas:** tratar cada tópico com lógica própria (aplicar/remover conforme o evento) — descartado: depende da ordem das mensagens. Projetar também o detalhe do dono ou versões reprovadas — descartado: baixa leitura e visibilidade por dono. Métricas de hit/miss — adiadas: ainda não há instrumentação OTel.
+- **Trade-off:** consistência eventual (a janela é o intervalo do relay mais o processamento: após publicar uma nova versão ou arquivar, o público pode ver o estado antigo por instantes), em troca de menos carga no banco e de uma leitura que nunca depende do Redis.
+- **A confirmar:** validade da chave de 24 h (`DETAIL_CACHE_TTL_SECONDS`, motivo técnico: `noeviction` sem TTL só cresce) e timeout de leitura de 200 ms (`DETAIL_CACHE_TIMEOUT_MS`) foram propostos pela IA, sem decisão explícita.
+
 ## Débitos técnicos
 
 - **Sem rotina de limpeza do outbox:** não configuramos retenção das mensagens publicadas nem `OutboxInbox.prune()`; dead letters só são expurgadas manualmente (`OutboxDeadLetters.purge`). Em produção: rotina de expurgo por idade.

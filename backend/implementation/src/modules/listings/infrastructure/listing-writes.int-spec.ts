@@ -234,6 +234,9 @@ describe('escritas do ciclo de vida (DrizzleListingRepository)', () => {
         [1, 'published', 'archived', 'seller-1'],
         [2, 'draft', 'archived', 'seller-1'],
       ]);
+      expect(await outboxMessages(id)).toEqual([
+        { topic: 'listing.archived', payload: { listingId: id } },
+      ]);
     });
 
     it('recusa, sem alterar nada, se houver versão em revisão', async () => {
@@ -254,6 +257,7 @@ describe('escritas do ciclo de vida (DrizzleListingRepository)', () => {
       );
       expect(await statuses(id)).toEqual({ 1: 'published', 2: 'in_review' });
       expect(await events(id)).toEqual([]);
+      expect(await outboxMessages(id)).toEqual([]);
     });
 
     it('recusa anúncio já totalmente arquivado', async () => {

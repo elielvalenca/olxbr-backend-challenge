@@ -24,6 +24,8 @@ describe('validateEnv', () => {
       OUTBOX_POLL_INTERVAL_MS: 1000,
       LISTINGS_DEFAULT_PAGE_SIZE: 20,
       LISTINGS_MAX_PAGE_SIZE: 50,
+      DETAIL_CACHE_TIMEOUT_MS: 200,
+      DETAIL_CACHE_TTL_SECONDS: 86_400,
     });
   });
 
@@ -44,6 +46,15 @@ describe('validateEnv', () => {
         LISTINGS_MAX_PAGE_SIZE: '50',
       }),
     ).toThrow(/LISTINGS_DEFAULT_PAGE_SIZE/);
+  });
+
+  it('rejeita tempo limite e validade da projeção inválidos', () => {
+    expect(() =>
+      validateEnv({ ...base, DETAIL_CACHE_TIMEOUT_MS: 'x' }),
+    ).toThrow(/DETAIL_CACHE_TIMEOUT_MS/);
+    expect(() =>
+      validateEnv({ ...base, DETAIL_CACHE_TTL_SECONDS: '0' }),
+    ).toThrow(/DETAIL_CACHE_TTL_SECONDS/);
   });
 
   it('converte PORT de string para número', () => {

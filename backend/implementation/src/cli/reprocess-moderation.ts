@@ -1,7 +1,7 @@
 import { Queue } from 'bullmq';
 import { validateEnv } from '../shared/config/env.js';
 import { redisConnection } from '../shared/queue/redis-connection.js';
-import { MODERATION_QUEUE } from '../modules/moderation/infrastructure/moderation-queue.js';
+import { MODERATION_QUEUE } from '../shared/queue/queues.js';
 import { reprocessFailedModerations } from '../modules/moderation/infrastructure/reprocess-failed.js';
 
 /** Reenfileira as moderações que falharam definitivamente (rode com o worker ligado). */

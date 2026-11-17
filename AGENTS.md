@@ -95,7 +95,7 @@ Use OpenSpec para mudanças de **regra de negócio ou nova capacidade**. Não é
 
 Artefatos em `openspec/` (em pt-BR, ver `openspec/config.yaml`). Fluxo no Claude Code: `/opsx:explore` → `/opsx:propose` → `/opsx:apply` → `/opsx:archive`.
 
-Changes planejadas, em ordem (só `proposal.md` por ora; detalhar design/tasks ao implementar cada uma): `listing-data-model` → `listing-lifecycle` → `moderation-pipeline` → `listing-queries` → `detail-projection`. Ver D13 em `DECISIONS.md`.
+Changes, em ordem (planejamento detalhado ao implementar cada uma): `listing-data-model` → `listing-lifecycle` → `moderation-pipeline` → `listing-queries` → `detail-projection`. Ver D13 em `DECISIONS.md`.
 
 ## Registro de entregáveis
 

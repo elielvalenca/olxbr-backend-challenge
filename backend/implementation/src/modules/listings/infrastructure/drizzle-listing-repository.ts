@@ -11,6 +11,11 @@ import {
   PG_UNIQUE_VIOLATION,
   postgresErrorCode,
 } from '../../../shared/database/pg-errors.js';
+import {
+  LISTING_ARCHIVED_TOPIC,
+  LISTING_PUBLISHED_TOPIC,
+  LISTING_SUBMITTED_TOPIC,
+} from '../../../shared/outbox/topics.js';
 import { SYSTEM_ACTOR, type Actor } from '../domain/actor.js';
 import {
   ListingVersionConflictError,
@@ -196,7 +201,7 @@ export class DrizzleListingRepository implements ListingRepository {
         expectedFrom: 'draft',
       });
       await this.outbox.add(tx, {
-        topic: 'listing.submitted',
+        topic: LISTING_SUBMITTED_TOPIC,
         payload: { listingId: ref.listingId, version: ref.version },
       });
     });
@@ -239,6 +244,10 @@ export class DrizzleListingRepository implements ListingRepository {
           actor,
         });
       }
+      await this.outbox.add(tx, {
+        topic: LISTING_ARCHIVED_TOPIC,
+        payload: { listingId },
+      });
     });
   }
 
@@ -279,6 +288,11 @@ export class DrizzleListingRepository implements ListingRepository {
         );
       }
       await this.applyTransition(tx, ref, 'published', details);
+      // Uma só mensagem, mesmo arquivando a versão anterior: a projeção relê o estado atual.
+      await this.outbox.add(tx, {
+        topic: LISTING_PUBLISHED_TOPIC,
+        payload: { listingId: ref.listingId },
+      });
     });
   }
 

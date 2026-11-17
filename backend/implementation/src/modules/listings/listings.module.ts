@@ -6,17 +6,25 @@ import { CreateListing } from './application/create-listing.js';
 import { GetOwnListing } from './application/get-own-listing.js';
 import { GetPublicListing } from './application/get-public-listing.js';
 import { ListPublishedListings } from './application/list-published-listings.js';
-import { LISTING_QUERIES } from './application/listing-queries.js';
 import { EditListing } from './application/edit-listing.js';
 import { SubmitListing } from './application/submit-listing.js';
 import { ListingQueriesController } from './http/listing-queries.controller.js';
 import { ListingsController } from './http/listings.controller.js';
 import { MyListingsController } from './http/my-listings.controller.js';
-import { DrizzleListingQueries } from './infrastructure/drizzle-listing-queries.js';
+import { ListingQueriesModule } from './listing-queries.module.js';
 import { ListingRepositoryModule } from './listing-repository.module.js';
+import { ProjectionCacheModule } from '../projection/projection-cache.module.js';
+import { ProjectionRequestsModule } from '../projection/projection-requests.module.js';
 
 @Module({
-  imports: [AuthModule, ApiOutboxModule, ListingRepositoryModule],
+  imports: [
+    AuthModule,
+    ApiOutboxModule,
+    ListingRepositoryModule,
+    ListingQueriesModule,
+    ProjectionCacheModule,
+    ProjectionRequestsModule,
+  ],
   controllers: [
     ListingsController,
     ListingQueriesController,
@@ -30,7 +38,6 @@ import { ListingRepositoryModule } from './listing-repository.module.js';
     ListPublishedListings,
     GetPublicListing,
     GetOwnListing,
-    { provide: LISTING_QUERIES, useClass: DrizzleListingQueries },
   ],
 })
 export class ListingsModule {}

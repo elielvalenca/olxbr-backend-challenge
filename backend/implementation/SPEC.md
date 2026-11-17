@@ -54,7 +54,7 @@ Sem tabela de vendedor: o `sub` do JWT é gravado como `seller_id`.
 | `published` | `archived` | sistema (nova versão publicada) |
 | qualquer exceto `in_review` | `archived` | usuário |
 
-- **`rejected`** é resultado de negócio, com `rejection_reason` visível. Falhas de integração nunca viram `rejected`.
+- **`rejected`** é resultado de negócio, com `rejection_reason` visível só ao dono. Falhas de integração nunca viram `rejected`.
 - **Falha definitiva de integração** (retries esgotados ou `400`): o anúncio **permanece `in_review`**, a falha é registrada (audit + job falho no BullMQ) e há um script de reprocessamento.
 - `published` entra direto após aprovação (sem etapas extras nesta versão).
 
@@ -84,8 +84,9 @@ Sem tabela de vendedor: o `sub` do JWT é gravado como `seller_id`.
 
 ## Projeção de leitura do detalhe (Redis)
 
-- O payload do detalhe é **pré-computado e salvo pronto** no Redis por um job disparado pelos eventos do outbox (publicação, reprovação, arquivamento).
-- O detalhe é lido sempre do Redis, com **timeout configurável** (env) e **fallback para o Postgres** em miss, erro ou timeout.
+- O payload do detalhe **público** (só a versão `published`) é **pré-computado e salvo pronto** no Redis por um job disparado pelos eventos do outbox (`listing.published` e `listing.archived`). Reprovar não gera evento: não muda o que o público vê.
+- A chave tem validade configurável (`DETAIL_CACHE_TTL_SECONDS`): o Redis roda com `noeviction`, e a validade limita a memória e corrige sozinha uma mensagem perdida.
+- O detalhe público é lido primeiro do Redis, com **timeout configurável** (env) e **fallback para o Postgres** em miss, erro ou timeout.
 - Em miss, a API também enfileira uma reconstrução da projeção, **no máximo um pedido pendente por `listing_id`** (deduplicação do BullMQ por `listing_id`). A API nunca escreve no Redis: o projection worker é o único escritor.
 - Detalhe do dono (qualquer status) vem do Postgres (não é projetado).
 
@@ -106,11 +107,11 @@ API (1 transação) ─► listings + listing_audit_events + outbox.add()
                                                         │
         relay do @nestjs/outbox (worker) ── polling ────┤
                     ├─► fila `moderation`  ← listing.submitted
-                    └─► fila `projection`  ← listing.published | listing.rejected | listing.archived
+                    └─► fila `projection`  ← listing.published | listing.archived
 
 moderation worker: limiter 5/s · timeout · circuit breaker · retry
-   └─► 1 transação: status + audit + outbox(listing.published | listing.rejected)
-projection worker: monta o payload do detalhe a partir do Postgres → SET no Redis
+   └─► 1 transação: status + audit (+ outbox listing.published, se aprovado)
+projection worker: relê o estado no Postgres → SET no Redis (ou DEL se não há versão publicada)
 ```
 
 **Outbox e relay (`@nestjs/outbox`)**
@@ -135,8 +136,8 @@ projection worker: monta o payload do detalhe a partir do Postgres → SET no Re
 
 **Fila `projection`**
 
-- Jobs vindos do outbox usam `jobId = id da mensagem`; reconstruções por miss usam deduplicação por `listing_id`.
-- O job reconstrói o payload a partir do estado atual no Postgres (não do conteúdo do evento) e grava no Redis; arquivamento remove a chave.
+- Jobs vindos do outbox usam `jobId = id da mensagem`; reconstruções por miss usam `jobId = rebuild-<listing_id>` (deduplicação do BullMQ), só para anúncios que existem publicados.
+- O job reconstrói o payload a partir do estado atual no Postgres (não do conteúdo do evento) e grava no Redis; sem versão publicada, remove a chave. Duplicata e ordem trocada convergem para o mesmo estado.
 - Concorrência 1 no worker de projeção, para evitar escrita fora de ordem.
 
 **Processos**

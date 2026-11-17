@@ -109,6 +109,16 @@ Corpo de criação (e, parcialmente, de edição):
 - **Falha definitiva nunca vira `rejected`:** a versão permanece `in_review`, a auditoria ganha um evento `moderation_failed` e o job fica no set `failed`. Depois de resolver a causa: `pnpm moderation:reprocess` (com o Redis acima).
 - Limite global de 5 jobs/s (Redis), timeout e circuit breaker configuráveis por variáveis `MODERATION_*` (ver `.env.example`). O estado do breaker é por processo do worker.
 
+## Projeção do detalhe público
+
+`GET /listings/:listingId` lê primeiro do Redis (`listing:detail:<listingId>`, JSON do mesmo detalhe) e cai para o Postgres em miss, erro ou tempo limite (`DETAIL_CACHE_TIMEOUT_MS`); uma falha do Redis nunca vira erro na resposta.
+
+- **Quem escreve:** só o worker. Publicar e arquivar gravam `listing.published`/`listing.archived` no outbox, na mesma transação; o relay as entrega à fila `projection`, e o job relê o Postgres e faz `SET` (ou `DEL`, se não há versão publicada). Reprovar não gera evento.
+- **Miss:** a API lê do banco e, se o anúncio existe publicado, enfileira uma reconstrução (no máximo uma pendente por anúncio, sem atrasar a resposta). Anúncio sem versão publicada responde `404` sem enfileirar nada.
+- **Consistência eventual:** após publicar uma nova versão ou arquivar, o público pode ver o estado antigo até o relay (`OUTBOX_POLL_INTERVAL_MS`) e o worker rodarem.
+- **Validade:** `DETAIL_CACHE_TTL_SECONDS` (padrão 24 h). O Redis roda com `noeviction` (exigência do BullMQ), então a validade limita a memória e corrige uma mensagem perdida.
+- O detalhe do dono (`/me/listings/:id`) e a listagem não passam pela projeção.
+
 ## Testes
 
 | Comando | O que roda |

@@ -1,4 +1,4 @@
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, sql } from 'drizzle-orm';
 import {
   insertVersion,
   newListingId,
@@ -47,6 +47,14 @@ describe('resultado da moderação no repositório', () => {
       .where(eq(listingAuditEvents.listingId, listingId))
       .orderBy(asc(listingAuditEvents.id));
 
+  const outboxTopics = async (listingId: string) =>
+    (
+      await db().execute(
+        sql`SELECT topic FROM nest_outbox.messages
+            WHERE payload->>'listingId' = ${listingId}`,
+      )
+    ).rows.map((r) => r.topic);
+
   it('findVersion lê a versão pedida, não a mais recente', async () => {
     const listingId = newListingId();
     await insertVersion(db(), { listingId, version: 1, status: 'published' });
@@ -72,6 +80,8 @@ describe('resultado da moderação no repositório', () => {
       1: 'archived',
       2: 'published',
     });
+    // Uma só mensagem, mesmo com a versão anterior arquivada junto.
+    expect(await outboxTopics(listingId)).toEqual(['listing.published']);
   });
 
   it('rejeita com o motivo na versão e na auditoria', async () => {
@@ -89,6 +99,8 @@ describe('resultado da moderação no repositório', () => {
       .from(listings)
       .where(and(eq(listings.listingId, listingId), eq(listings.version, 1)));
     expect(row?.reason).toBe('price_out_of_range');
+    // Reprovar não muda o detalhe público: não há o que projetar.
+    expect(await outboxTopics(listingId)).toEqual([]);
     expect((await events(listingId)).at(-1)).toMatchObject({
       fromStatus: 'in_review',
       toStatus: 'rejected',
@@ -113,6 +125,7 @@ describe('resultado da moderação no repositório', () => {
       2: 'rejected',
     });
     expect(await events(listingId)).toHaveLength(0);
+    expect(await outboxTopics(listingId)).toEqual([]);
   });
 
   it('registra falha de moderação sem mudar o status', async () => {
