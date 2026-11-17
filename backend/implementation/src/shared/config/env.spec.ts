@@ -22,6 +22,8 @@ describe('validateEnv', () => {
       MODERATION_BREAKER_MIN_CALLS: 5,
       MODERATION_BREAKER_OPEN_MS: 10_000,
       OUTBOX_POLL_INTERVAL_MS: 1000,
+      LISTINGS_DEFAULT_PAGE_SIZE: 20,
+      LISTINGS_MAX_PAGE_SIZE: 50,
     });
   });
 
@@ -32,6 +34,16 @@ describe('validateEnv', () => {
     expect(() =>
       validateEnv({ ...base, MODERATION_BREAKER_FAILURE_RATE: '150' }),
     ).toThrow(/MODERATION_BREAKER_FAILURE_RATE/);
+  });
+
+  it('rejeita limite padrão de página acima do máximo', () => {
+    expect(() =>
+      validateEnv({
+        ...base,
+        LISTINGS_DEFAULT_PAGE_SIZE: '60',
+        LISTINGS_MAX_PAGE_SIZE: '50',
+      }),
+    ).toThrow(/LISTINGS_DEFAULT_PAGE_SIZE/);
   });
 
   it('converte PORT de string para número', () => {

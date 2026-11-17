@@ -81,3 +81,9 @@ Horários no fuso local. Detalhes das decisões em [DECISIONS.md](DECISIONS.md);
 - `23:25` **marco** — moderation-pipeline implementada (tasks 1–5), sem commit
 - `23:27` **marco** — commit da moderation-pipeline e arquivamento
 - `23:27` **marco** — moderation-pipeline arquivada (3 specs sincronizadas)
+- `23:34` **pedido** — listing-queries: separar detalhe público (só published) do detalhe do dono
+- `23:34` **divergencia** — D18 — IA propôs detalhe único com auth opcional e rejected público; usuário separou: público só published, /me/listings/:id para o dono
+- `23:34` **decisao** — D18 — rota do dono GET /me/listings/:listingId (escolhida entre duas opções)
+- `23:34` **marco** — listing-queries: artefatos revisados (proposal, specs, design, tasks) + SPEC.md e AGENTS.md alinhados
+- `23:40` **validacao** — listing-queries: typecheck, lint, 72 unit, 31 e2e, 105 int (Testcontainers) e openspec validate passando
+- `23:40` **decisao** — listing-queries: e2e força o status no banco em vez de rodar o worker (pipeline já coberto em moderation-pipeline)

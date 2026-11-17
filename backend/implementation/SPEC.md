@@ -63,7 +63,8 @@ Sem tabela de vendedor: o `sub` do JWT é gravado como `seller_id`.
 | Endpoint | Público | Dono (JWT) |
 | --- | --- | --- |
 | Listagem | só `published` | — |
-| Detalhe | `published` e `rejected` (com motivo) | todos os status das suas versões |
+| Detalhe (`GET /listings/:id`) | só a versão `published` (senão 404) | — |
+| Detalhe do dono (`GET /me/listings/:id`) | — | versão mais recente em qualquer status, com `rejection_reason` |
 | Criar / editar / enviar / arquivar | — | sim |
 
 ## Validações (na criação e edição do draft)
@@ -86,7 +87,7 @@ Sem tabela de vendedor: o `sub` do JWT é gravado como `seller_id`.
 - O payload do detalhe é **pré-computado e salvo pronto** no Redis por um job disparado pelos eventos do outbox (publicação, reprovação, arquivamento).
 - O detalhe é lido sempre do Redis, com **timeout configurável** (env) e **fallback para o Postgres** em miss, erro ou timeout.
 - Em miss, a API também enfileira uma reconstrução da projeção, **no máximo um pedido pendente por `listing_id`** (deduplicação do BullMQ por `listing_id`). A API nunca escreve no Redis: o projection worker é o único escritor.
-- Detalhe do dono para `draft`/`in_review` vem do Postgres (não é projetado).
+- Detalhe do dono (qualquer status) vem do Postgres (não é projetado).
 
 ## Moderação assíncrona
 

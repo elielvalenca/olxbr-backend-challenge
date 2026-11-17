@@ -59,7 +59,7 @@ Status: `draft` → `in_review` → `published` | `rejected`; qualquer versão p
 
 - Anúncio nasce `draft`. Um endpoint dedicado envia para revisão (`in_review`).
 - Só a moderação move `in_review` → `published`/`rejected`.
-- `rejected` é **resultado de negócio** (com `rejection_reason` visível). Falhas de integração **nunca** viram `rejected`: o anúncio permanece `in_review`, a falha é registrada e há script de reprocessamento.
+- `rejected` é **resultado de negócio** (com `rejection_reason`, visível só ao dono). Falhas de integração **nunca** viram `rejected`: o anúncio permanece `in_review`, a falha é registrada e há script de reprocessamento.
 - Versões append-only: `draft` é editável no lugar; editar `published`/`rejected` cria nova versão `draft`; publicar uma nova versão arquiva a anterior.
 - Preço sempre em centavos (`bigint`). Sem validar faixa de preço por categoria — isso é da moderação.
 - Transições válidas ficam no domínio, com teste unitário. Toda transição gera um evento em `listing_audit_events` e, quando relevante, uma mensagem no outbox (`outbox.add(tx, …)`) na mesma transação.

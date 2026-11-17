@@ -87,6 +87,19 @@ Corpo de criação (e, parcialmente, de edição):
 - `409`: transição inválida (ex.: enviar quem não é rascunho), edição de versão `in_review` ou `archived`, arquivar com versão `in_review` e edição concorrente.
 - A edição parte sempre da **versão mais recente**, mesmo `rejected` (D16). Uma versão em `draft` só vai para a moderação no `submit`.
 
+## API de leitura
+
+| Método e rota | O que faz | Erros |
+| --- | --- | --- |
+| `GET /listings` | **Pública.** Lista anúncios `published`, mais recentes primeiro | `400` |
+| `GET /listings/:listingId` | **Pública.** Detalhe da versão `published`. Ignora `Authorization` | `404` |
+| `GET /me/listings/:listingId` | **Autenticada.** Detalhe do dono: versão mais recente em qualquer status, com `rejectionReason` se `rejected` | `401` `404` |
+
+- Query da listagem: `offset` (padrão 0), `limit` (padrão `LISTINGS_DEFAULT_PAGE_SIZE`=20, máximo `LISTINGS_MAX_PAGE_SIZE`=50; acima disso `400`) e `category`. Resposta: `{ items, total, offset, limit }`, com `total` refletindo o filtro. Itens: `listingId`, `title`, `priceCents`, `category`, `publishedAt`, `coverImageUrl`.
+- O detalhe público responde `404` para tudo que não tem versão `published` (rascunho, em revisão, reprovado, arquivado, inexistente ou id que não é UUID), mesmo que exista uma versão mais nova em revisão: o público continua vendo a publicada. Reprovações e motivos só aparecem para o dono (D18).
+- `GET /me/listings/:listingId` responde `404` também para anúncio de outro vendedor.
+- `sellerId` nunca é exposto.
+
 ## Moderação assíncrona
 
 `submit` grava `listing.submitted` no outbox. O worker publica a mensagem na fila BullMQ `moderation` (relay do `@nestjs/outbox`), chama o mock e aplica o resultado em uma transação: `published` (arquivando a versão publicada anterior) ou `rejected` com `rejection_reason`.

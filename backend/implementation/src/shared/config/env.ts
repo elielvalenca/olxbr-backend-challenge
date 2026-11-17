@@ -37,12 +37,24 @@ export const envSchema = z.object({
   MODERATION_BREAKER_MIN_CALLS: positiveInt(5),
   MODERATION_BREAKER_OPEN_MS: positiveInt(10_000),
   OUTBOX_POLL_INTERVAL_MS: positiveInt(1000),
+  LISTINGS_DEFAULT_PAGE_SIZE: positiveInt(20),
+  LISTINGS_MAX_PAGE_SIZE: positiveInt(50),
 });
+
+/** Falha no boot se o limite padrão da listagem exceder o máximo. */
+const envSchemaChecked = envSchema.refine(
+  (env) => env.LISTINGS_DEFAULT_PAGE_SIZE <= env.LISTINGS_MAX_PAGE_SIZE,
+  {
+    path: ['LISTINGS_DEFAULT_PAGE_SIZE'],
+    message:
+      'LISTINGS_DEFAULT_PAGE_SIZE não pode exceder LISTINGS_MAX_PAGE_SIZE',
+  },
+);
 
 export type Env = z.infer<typeof envSchema>;
 
 export function validateEnv(config: Record<string, unknown>): Env {
-  const result = envSchema.safeParse(config);
+  const result = envSchemaChecked.safeParse(config);
   if (!result.success) {
     throw new Error(`Configuração inválida:\n${z.prettifyError(result.error)}`);
   }

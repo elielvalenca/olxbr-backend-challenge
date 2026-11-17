@@ -115,6 +115,13 @@ Decisões técnicas, alternativas descartadas, ambiguidades e trade-offs. A orde
 - **Alternativas consideradas:** ler o status e decidir fora da transação — descartada (janela de corrida); novo status ou tabela para falhas — descartada (a auditoria já é a trilha); `@Processor` com `process.env` na carga do módulo — descartada (foge da validação de env).
 - **Trade-off:** o estado do circuit breaker é por processo (com mais de um worker, cada um abre o seu); o limite por segundo continua global, via Redis. `removeOnComplete` limitado permite republicar uma mensagem já concluída; o caso de uso idempotente descarta o job extra.
 
+### D18 — Detalhe público e detalhe do dono em endpoints separados (change `listing-queries`)
+- **Contexto:** a SPEC original deixava `rejected` público (com motivo) e usava o mesmo endpoint para dono e visitante, com autenticação opcional.
+- **Escolha:** `GET /listings/:listingId` é público e só devolve a versão `published` (senão 404, ignorando `Authorization`). `GET /me/listings/:listingId` é autenticado e devolve a versão mais recente em qualquer status, com `rejection_reason`; anúncio de outro vendedor responde 404. Rejeitado deixa de ser público. Rota `/me/...` escolhida entre duas opções propostas (a outra era `/listings/:id/owner`).
+- **Alternativas consideradas:** endpoint único com guard opcional e regra por papel (proposta inicial da IA) — descartado para deixar o endpoint público o mais restrito possível, com regra única (publicado ou 404).
+- **Trade-off:** o visitante não vê mais anúncios reprovados nem o motivo (divergência do que a SPEC original dizia); em troca, o endpoint público é simples e a projeção no Redis só precisa cobrir `published`.
+- **A confirmar:** `limit` acima do máximo → 400 (em vez de reduzir) e padrões de página 20/50 foram propostos pela IA, sem decisão explícita.
+
 ## Débitos técnicos
 
 - **Sem rotina de limpeza do outbox:** não configuramos retenção das mensagens publicadas nem `OutboxInbox.prune()`; dead letters só são expurgadas manualmente (`OutboxDeadLetters.purge`). Em produção: rotina de expurgo por idade.
@@ -124,7 +131,7 @@ Decisões técnicas, alternativas descartadas, ambiguidades e trade-offs. A orde
 ## Requisitos ambíguos e interpretações
 
 - **Ambiguidade:** a doc do mock diz que a reprovação vem em `reason`; o servidor responde `rejection_reason`. → **Interpretação:** o adaptador aceita os dois e normaliza. **Por quê:** tratar o mock como serviço externo real, cuja doc pode divergir da implementação.
-- **Ambiguidade:** quem vê anúncios fora de `published`? → **Interpretação:** listagem só `published`; detalhe público para `published` e `rejected` (motivo visível, como pede o enunciado); `draft`/`in_review` só para o dono.
+- **Ambiguidade:** quem vê anúncios fora de `published`? → **Interpretação:** listagem só `published`; detalhe público só para `published` (senão 404); todo o resto, inclusive `rejected` com motivo, só para o dono em endpoint próprio (ver D18). _Revisada: a interpretação inicial tornava `rejected` público._
 - **Ambiguidade:** validar no draft ou só no envio para revisão? → **Interpretação:** já no draft, porque o enunciado associa as validações à criação.
 - **Ambiguidade:** paginação. → **Interpretação:** `offset`/`limit` com ordenação por `published_at desc`; cursor como evolução (base pequena).
 - **Ambiguidade:** onde fica o README da entrega. → **Interpretação:** `backend/implementation/README.md`, com o README da raiz apontando para ele.
