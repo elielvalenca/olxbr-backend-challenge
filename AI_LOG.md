@@ -92,3 +92,4 @@ Horários no fuso local. Detalhes das decisões em [DECISIONS.md](DECISIONS.md);
 - `23:43` **proposta** — detail-projection: só published/archived geram evento (reprovar não muda o detalhe público, D18); job único idempotente; TTL 24h e timeout 200ms (a confirmar)
 - `23:51` **decisao** — D19 — projeção do detalhe: só published/archived geram evento, job idempotente, relay compartilhado roteando por tópico; TTL 24h e timeout 200ms a confirmar
 - `23:51` **validacao** — detail-projection: typecheck, lint, build, 85 unit, 31 e2e, 114 int (Postgres+Redis reais) e openspec validate passando
+- `23:52` **marco** — detail-projection commitado e arquivado; última change concluída
