@@ -32,3 +32,8 @@ Horários no fuso local. Detalhes das decisões em [DECISIONS.md](DECISIONS.md);
 - `20:06` **validacao** — Compose: postgres 18, redis 8.8 (noeviction), mock e otel-lgtm 0.40 saudáveis; mock confirmou rejection_reason e 429 forçado
 - `20:06` **marco** — Commit 4/5: infraestrutura local
 - `20:06` **marco** — Commit 5/5: openspec init (Claude Code, artefatos em pt-BR)
+- `21:25` **pedido** — Planejar todas as changes do OpenSpec antes de implementar
+- `21:25` **proposta** — IA sugeriu 4 changes (lifecycle, moderation-pipeline, queries, projection), só proposal.md por ora; moderação antes da leitura; observabilidade/seed/README como chore
+- `21:41` **divergencia** — D13 — IA propôs 4 changes; usuário separou modelagem/migrations em change própria (listing-data-model) para maior qualidade nessas decisões
+- `21:42` **decisao** — D13 — 5 changes só com proposal.md; design e tasks detalhados na hora de implementar cada uma
+- `21:42` **marco** — Commit 6: cinco changes do OpenSpec (só proposals)

@@ -64,6 +64,12 @@ Decisões técnicas, alternativas descartadas, ambiguidades e trade-offs. A orde
 - **Escolha:** OTel SDK Node com auto-instrumentação, exportando OTLP para o container `grafana/otel-lgtm` (coletor + Prometheus + Tempo + Grafana em um container). Métricas da fila: profundidade por estado, jobs por resultado, latência da moderação, estado do circuit breaker e outbox pendente. A instrumentação OTel específica do NestJS ainda não suporta o v12; HTTP, `pg` e Redis são instrumentados normalmente. Um painel provisionado por arquivo.
 - **Alternativas consideradas:** NestJS Observe (oficial) — descartado: é SaaS hospedado e não recebe OTLP, e quero tudo rodando localmente. Grafana lendo direto do Postgres — descartado: não enxerga o estado do BullMQ nem do circuit breaker. Prometheus + Jaeger dedicados — mais containers e configuração para o escopo atual.
 
+### D13 — Planejamento em cinco changes do OpenSpec
+- **Contexto:** planejar a entrega inteira antes de implementar, sem especificar em excesso o que ainda depende de código.
+- **Escolha:** cinco changes, em ordem: `listing-data-model` → `listing-lifecycle` → `moderation-pipeline` → `listing-queries` → `detail-projection`. Cada uma nasce só com `proposal.md`; `design.md`, specs e tasks são detalhados quando a change for implementada. A moderação vem antes da leitura por ser o fluxo central e o maior risco técnico. Seed, scripts, observabilidade, Dockerfile e README ficam como `chore`, sem change.
+- **Alternativas consideradas:** quatro changes com modelagem dentro do ciclo de vida (proposta da IA) — descartada: quero mais qualidade nas decisões de modelagem e migrations (versionamento, constraints, índices), que são caras de desfazer. Detalhar todos os artefatos agora — descartado: risco de cascata, já que decisões como a integração do outbox com a transação do Drizzle só se fecham com código.
+- **Trade-off:** uma change a mais para manter, em troca de uma modelagem revisada isoladamente. A projeção é a primeira candidata a corte se o tempo apertar.
+
 ## Débitos técnicos
 
 - **Sem rotina de limpeza do outbox:** não configuramos retenção das mensagens publicadas nem `OutboxInbox.prune()`; dead letters só são expurgadas manualmente (`OutboxDeadLetters.purge`). Em produção: rotina de expurgo por idade.
