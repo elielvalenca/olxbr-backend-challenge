@@ -87,3 +87,4 @@ Horários no fuso local. Detalhes das decisões em [DECISIONS.md](DECISIONS.md);
 - `23:34` **marco** — listing-queries: artefatos revisados (proposal, specs, design, tasks) + SPEC.md e AGENTS.md alinhados
 - `23:40` **validacao** — listing-queries: typecheck, lint, 72 unit, 31 e2e, 105 int (Testcontainers) e openspec validate passando
 - `23:40` **decisao** — listing-queries: e2e força o status no banco em vez de rodar o worker (pipeline já coberto em moderation-pipeline)
+- `23:41` **marco** — listing-queries commitado (f1bfab3) e arquivado; specs listing-detail e listing-search criadas
