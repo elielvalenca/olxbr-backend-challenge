@@ -70,6 +70,25 @@ Decisões técnicas, alternativas descartadas, ambiguidades e trade-offs. A orde
 - **Alternativas consideradas:** quatro changes com modelagem dentro do ciclo de vida (proposta da IA) — descartada: quero mais qualidade nas decisões de modelagem e migrations (versionamento, constraints, índices), que são caras de desfazer. Detalhar todos os artefatos agora — descartado: risco de cascata, já que decisões como a integração do outbox com a transação do Drizzle só se fecham com código.
 - **Trade-off:** uma change a mais para manter, em troca de uma modelagem revisada isoladamente. A projeção é a primeira candidata a corte se o tempo apertar.
 
+### D14 — Modelagem das versões (change `listing-data-model`)
+- **Contexto:** o anúncio é append-only por versão; quero que o banco garanta as invariantes, em vez de controlar race conditions na aplicação.
+- **Escolha:**
+  - `listings` com PK composta `(listing_id, version)`; `listing_id` é um UUID v4 sem tabela própria.
+  - Dois índices únicos parciais: um por `listing_id` onde `status = 'published'` (uma versão ativa) e outro onde `status IN ('draft','in_review')` (uma versão aberta). Como índice parcial não é `DEFERRABLE`, a publicação arquiva a versão anterior antes de publicar a nova, na mesma transação; a corrida entre dois jobs vira `unique_violation`, tratada pelo retry e pela idempotência do worker.
+  - `listing_images` por versão, copiada ao criar nova versão, com FK composta.
+  - `listing_audit_events` escrita pela aplicação na mesma transação, com `metadata jsonb` para enriquecimento futuro por metadados vindos da API.
+  - Preço em `bigint` com `CHECK (> 0)` no banco; status em `text` com `CHECK`; `rejection_reason` em `text` livre; datas em `timestamptz`.
+- **Alternativas consideradas:** coluna `is_current` — descartada: pode divergir do status; imagens compartilhadas por `listing_id` — descartada: editar o rascunho alteraria o anúncio publicado, quebrando a imutabilidade; imagens em `jsonb` — descartada em favor da tabela filha (_motivo da preferência: a confirmar_; a IA argumentou extensibilidade e aderência à SPEC), ao custo de o mínimo de 1 imagem ficar só na aplicação; PK surrogate por versão — descartada: o par já é a identidade usada no job, na auditoria e na chave do Redis; auditoria por trigger — descartada: precisa de contexto (ator, motivo, metadados da API) que só a aplicação conhece.
+- **Divergência:** a IA propôs `CHECK` de 10 a 100 caracteres no título; **recusei** porque quero ajustar esse limite por configuração no futuro, sem migration. O limite do título fica só na aplicação (e a coluna é `text`, sem `varchar(n)`).
+- **Trade-off:** invariantes críticas no banco, regras de negócio ajustáveis na aplicação.
+- **Na implementação:** o repositório (`ListingRepository`) traduz `unique_violation` em `ListingVersionConflictError` e faz cada transição (status + evento) numa única transação, com lock de linha só para ler o status atual; criei um índice extra em `listing_audit_events (listing_id, version, id)` para ler o histórico em ordem. O ator `system` é gravado como o texto `system`, então um vendedor cujo `sub` do JWT fosse literalmente `system` seria indistinguível na auditoria; aceito o risco porque os tokens são emitidos por script. O mínimo de 1 imagem continua só na aplicação.
+
+### D15 — Migrations: Drizzle como histórico único
+- **Escolha:** o SQL do `@nestjs/outbox` (`npx @nestjs/outbox sql --statement-breakpoints`) entra numa migration custom do Drizzle; o store roda com `migrate: false` em todos os ambientes. Dev, testes e produção aplicam o mesmo histórico.
+- **Alternativas consideradas:** auto-migração do pacote no boot e CLI do pacote como passo separado — descartadas: dois históricos e ordem dependente do ambiente.
+- **Trade-off:** ao atualizar o pacote, preciso gerar uma nova migration com o SQL novo.
+- **Na implementação:** o `@nestjs/outbox` está na versão 0.1.4 (pré-1.0), então o SQL fica fixado numa migration nossa (`drizzle/0001_outbox.sql`) e um teste de integração garante que o store inicia com `migrate: false` e falha com `OutboxSchemaError`, em vez de migrar sozinho, num banco sem migrations. `pnpm db:migrate` e `pnpm db:reset` rodam o mesmo histórico; o reset recusa `NODE_ENV=production`.
+
 ## Débitos técnicos
 
 - **Sem rotina de limpeza do outbox:** não configuramos retenção das mensagens publicadas nem `OutboxInbox.prune()`; dead letters só são expurgadas manualmente (`OutboxDeadLetters.purge`). Em produção: rotina de expurgo por idade.

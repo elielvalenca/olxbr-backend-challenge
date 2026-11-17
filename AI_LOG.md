@@ -37,3 +37,22 @@ Horários no fuso local. Detalhes das decisões em [DECISIONS.md](DECISIONS.md);
 - `21:41` **divergencia** — D13 — IA propôs 4 changes; usuário separou modelagem/migrations em change própria (listing-data-model) para maior qualidade nessas decisões
 - `21:42` **decisao** — D13 — 5 changes só com proposal.md; design e tasks detalhados na hora de implementar cada uma
 - `21:42` **marco** — Commit 6: cinco changes do OpenSpec (só proposals)
+- `21:57` **decisao** — listing-data-model — versão ativa (published) garantida por índice único parcial no banco, em vez de controle transacional na aplicação
+- `21:58` **trade-off** — listing-data-model — imagens por versão: tabela filha copiada por versão x jsonb na versão x tabela compartilhada; em análise
+- `22:02` **decisao** — listing-data-model — imagens em tabela filha por versão (listing_images), copiadas ao criar nova versão; B (compartilhada) descartada por quebrar imutabilidade; jsonb descartado. Mínimo de 1 imagem fica na aplicação (risco conhecido). Motivo da escolha de A sobre jsonb: a confirmar
+- `22:07` **decisao** — listing-data-model — PK composta (listing_id, version) em listings; FKs compostas em images e audit; sem tabela própria de listing_id
+- `22:07` **decisao** — listing-data-model — segundo índice único parcial: no máximo uma versão aberta (draft/in_review) por listing_id; UNIQUE(listing_id, version) via PK
+- `22:10` **decisao** — listing-data-model — auditoria escrita pela aplicação na mesma transação (não trigger); motivo: será enriquecida no futuro com metadados vindos da API; prever coluna metadata jsonb
+- `22:13` **decisao** — D15 — migrations: SQL do @nestjs/outbox dentro de migration custom do Drizzle; migrate=false no store em todos os ambientes
+- `22:13` **divergencia** — D14 — IA propôs CHECK de 10–100 no título no banco; usuário recusou para controlar o limite por config sem migration (preço > 0 no banco mantido)
+- `22:15` **decisao** — D14 — máximo de imagens fora do banco (só position >= 0 e PK composta); limite configurável na aplicação
+- `22:25` **marco** — listing-data-model: specs (listing-versioning, listing-audit) e design.md escritos; openspec validate --strict ok; tasks ainda não criadas
+- `22:17` **validacao** — Design verificado contra o instalado: drizzle-orm 0.45.4 suporta índice parcial/PK e FK compostas/CHECK/generate --custom; @nestjs/outbox 0.1.4 'sql' gera o schema nest_outbox (messages, dead_letters, inbox, migrations)
+- `22:21` **marco** — listing-data-model: tasks.md gerado (6 grupos, 22 tasks); change pronta para /opsx:apply
+- `22:22` **pedido** — Implementar listing-data-model (/opsx:apply)
+- `22:25` **validacao** — listing-data-model grupos 1–3: 25 testes de integração (Testcontainers) passam; mutation check — sem os índices parciais 4 testes de invariante falham
+- `22:29` **marco** — listing-data-model grupos 4–5: migration do outbox, repositório Drizzle (porta, adaptador, erros) e testes de auditoria/repositório; 47 testes de integração passam
+- `22:31` **correcao-ia** — migration do outbox: comando 'outbox' inexistente (bin é nest-outbox) sobrescreveu o arquivo; detectado ao inspecionar e regenerado
+- `22:31` **marco** — listing-data-model: 22/22 tasks concluídas; suíte completa verde (10 unit, 1 e2e, 48 int), build ok, openspec validate --strict ok
+- `22:34` **decisao** — Convenção de commits: um único commit por change do OpenSpec, reunindo planejamento (proposal/specs/design/tasks) e implementação; motivo: a confirmar
+- `22:34` **marco** — Commit 7: change listing-data-model (planejamento + implementação)

@@ -1,3 +1,9 @@
 allowBuilds:
   # telemetria do swagger-ui; não precisa rodar script de instalação
   "@scarf/scarf": false
+  # os binários do esbuild vêm por optionalDependencies
+  esbuild: false
+  # módulos nativos opcionais do ssh2/protobufjs (testcontainers); não usados
+  cpu-features: false
+  protobufjs: false
+  ssh2: false

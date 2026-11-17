@@ -113,6 +113,9 @@ Em `backend/implementation/`, com Node 22 (`nvm use`):
 | `pnpm start:dev` / `pnpm start:worker:dev` | API (Swagger em `/docs`) / worker, em modo watch |
 | `pnpm build` | Compila para `dist/` (`main.js` e `worker.js`) |
 | `pnpm typecheck` · `pnpm lint` · `pnpm format` | Tipos, oxlint, Prettier |
-| `pnpm test` · `pnpm test:e2e` | Unitários (`*.spec.ts`) · e2e (`test/*.e2e-spec.ts`) |
+| `pnpm test` · `pnpm test:e2e` · `pnpm test:int` | Unitários (`*.spec.ts`) · e2e (`test/*.e2e-spec.ts`) · integração com Postgres via Testcontainers (`*.int-spec.ts`, exige Docker) |
+| `pnpm db:migrate` · `pnpm db:reset` · `pnpm db:generate` | Aplica migrations · apaga e recria o banco (nunca em produção) · gera migration a partir do schema Drizzle |
 
 _A completar: seed, gerar JWT, reprocessar jobs falhos._
+
+Migrations: o histórico único é `drizzle/` (inclui o SQL do `@nestjs/outbox`). Nunca edite uma migration já criada; gere uma nova.
