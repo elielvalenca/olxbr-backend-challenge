@@ -4,11 +4,14 @@ Decisões técnicas, alternativas descartadas, ambiguidades e trade-offs. A orde
 
 ## Decisões técnicas
 
-### D1 — Escopo proporcional ao esforço do desafio
-- **Contexto:** a especificação inicial incluía JWT, BullMQ, circuit breaker, OTel, Prometheus, Jaeger, Grafana, Testcontainers, versionamento append-only, materialized view, BFF com HMAC e teste A/B — muito além das 4–6h estimadas pelo desafio, que avalia "solução proporcional, sem abstrações sobrando".
-- **Escolha:** essencial (CRUD + ciclo de status + moderação assíncrona resiliente + JWT + Swagger + testes + Compose), mais OTel mínimo e um painel do Grafana para a fila de moderação, porque preciso de observabilidade no relay.
-- **Alternativas consideradas:** implementar toda a spec inicial — descartado pelo custo e pelo risco de entregar peças que não domino a fundo. Jaeger e Prometheus dedicados — fora. BFF com HMAC, projeção da listagem e teste A/B — documentados como evolução.
-- **Trade-off:** menos peças para demonstrar, em troca de um núcleo bem testado e explicável.
+### D1 — Escopo: núcleo proporcional, mais extras que assumo como escolha
+- **Contexto:** a especificação inicial incluía JWT, BullMQ, circuit breaker, OTel, Prometheus, Jaeger, Grafana, Testcontainers, versionamento append-only, materialized view, BFF com HMAC e teste A/B — muito além das 4–6h estimadas pelo desafio, que avalia "solução proporcional, sem abstrações sobrando" e diz que não avalia "número de funcionalidades extras".
+- **Escolha:** cortei a spec inicial, mas a entrega ficou **maior que o orçamento de 4–6h**. Separo o que é núcleo do que é extra:
+  - **Núcleo (os quatro requisitos do enunciado):** criar, listar com paginação e filtro, detalhar e moderar. Para a moderação do mock, que falha 20% das vezes e limita a 5 req/s, entram outbox, fila com retry, circuit breaker e rate limit; mais JWT, Swagger, testes e Compose.
+  - **Extras que mantive:** versionamento append-only dos anúncios (D2, D14), projeção do detalhe no Redis (D7, D19) e OTel com um painel da fila no Grafana (D12). Mantive cada um pelo motivo registrado na sua decisão; nenhum é exigido pelo enunciado.
+  - **Candidato a corte:** a projeção do detalhe (D13). A leitura já funciona sem ela, pelo fallback no Postgres, e não há medição de carga que a justifique.
+- **Alternativas consideradas:** implementar toda a spec inicial — descartado pelo custo e pelo risco de entregar peças que não domino a fundo. Jaeger e Prometheus dedicados — fora. BFF com HMAC, projeção da listagem e teste A/B — documentados como evolução. Cortar também os três extras — não fiz; assumo o custo de ter mais superfície para explicar.
+- **Trade-off:** mais código e mais peças para defender na apresentação, em troca de um modelo de dados que suporta histórico de versões e de uma fila observável; os extras não somam na avaliação, então o risco é meu.
 
 ### D2 — Versionamento append-only dos anúncios
 - **Contexto:** quero histórico de versões (base para A/B no futuro) sem atrapalhar a edição de rascunhos.
@@ -78,7 +81,7 @@ Decisões técnicas, alternativas descartadas, ambiguidades e trade-offs. A orde
   - `listing_images` por versão, copiada ao criar nova versão, com FK composta.
   - `listing_audit_events` escrita pela aplicação na mesma transação, com `metadata jsonb` para enriquecimento futuro por metadados vindos da API.
   - Preço em `bigint` com `CHECK (> 0)` no banco; status em `text` com `CHECK`; `rejection_reason` em `text` livre; datas em `timestamptz`.
-- **Alternativas consideradas:** coluna `is_current` — descartada: pode divergir do status; imagens compartilhadas por `listing_id` — descartada: editar o rascunho alteraria o anúncio publicado, quebrando a imutabilidade; imagens em `jsonb` — descartada em favor da tabela filha (_motivo da preferência: a confirmar_; a IA argumentou extensibilidade e aderência à SPEC), ao custo de o mínimo de 1 imagem ficar só na aplicação; PK surrogate por versão — descartada: o par já é a identidade usada no job, na auditoria e na chave do Redis; auditoria por trigger — descartada: precisa de contexto (ator, motivo, metadados da API) que só a aplicação conhece.
+- **Alternativas consideradas:** coluna `is_current` — descartada: pode divergir do status; imagens compartilhadas por `listing_id` — descartada: editar o rascunho alteraria o anúncio publicado, quebrando a imutabilidade; imagens em `jsonb` — descartada em favor da tabela filha (motivo: extensibilidade e facilidade de consulta, já que cada imagem é uma linha que pode ganhar atributos e ser consultada sem reescrever um `jsonb`; aderente à SPEC), ao custo de o mínimo de 1 imagem ficar só na aplicação; PK surrogate por versão — descartada: o par já é a identidade usada no job, na auditoria e na chave do Redis; auditoria por trigger — descartada: precisa de contexto (ator, motivo, metadados da API) que só a aplicação conhece.
 - **Divergência:** a IA propôs `CHECK` de 10 a 100 caracteres no título; **recusei** porque quero ajustar esse limite por configuração no futuro, sem migration. O limite do título fica só na aplicação (e a coluna é `text`, sem `varchar(n)`).
 - **Trade-off:** invariantes críticas no banco, regras de negócio ajustáveis na aplicação.
 - **Na implementação:** o repositório (`ListingRepository`) traduz `unique_violation` em `ListingVersionConflictError` e faz cada transição (status + evento) numa única transação, com lock de linha só para ler o status atual; criei um índice extra em `listing_audit_events (listing_id, version, id)` para ler o histórico em ordem. O ator `system` é gravado como o texto `system`, então um vendedor cujo `sub` do JWT fosse literalmente `system` seria indistinguível na auditoria; aceito o risco porque os tokens são emitidos por script. O mínimo de 1 imagem continua só na aplicação.
@@ -104,7 +107,7 @@ Decisões técnicas, alternativas descartadas, ambiguidades e trade-offs. A orde
 - **Na implementação:** `submit` e `archiveAll` revalidam o status dentro da transação (com lock), então uma corrida entre a leitura e a escrita vira `409`. Duas edições simultâneas nunca criam duas versões abertas: a que perde ou cai no rascunho recém-criado ou recebe conflito. O edit de rascunho não gera evento de auditoria (a trilha é só de status).
 
 ### D17 — Pipeline de moderação (change `moderation-pipeline`)
-- **Contexto:** a SPEC define a fila (outbox → BullMQ → worker), mas deixa em aberto como moderar com idempotência, onde ficam o retry e o circuit breaker e como registrar falha definitiva. _Estas escolhas partiram da proposta da IA (design da change); a confirmar com o candidato._
+- **Contexto:** a SPEC define a fila (outbox → BullMQ → worker), mas deixa em aberto como moderar com idempotência, onde ficam o retry e o circuit breaker e como registrar falha definitiva. As escolhas abaixo partiram da proposta da IA no design da change; revisei todas e as assumo.
 - **Escolha:**
   - **Idempotência no banco:** o resultado é aplicado com `expectedFrom: 'in_review'` sob lock (`FOR UPDATE`) na mesma transação que arquiva a versão anterior; se outro processamento ganhou, a transação inteira é desfeita e o job é descartado.
   - **Retry só no BullMQ** (5 tentativas, backoff exponencial com jitter); a política do `@nestjs/resilience` fica com timeout + circuit breaker e `retry: false`, para não multiplicar tentativas. Só `5xx`/timeout/rede contam para o circuito; `429` e `400` não.
@@ -120,14 +123,14 @@ Decisões técnicas, alternativas descartadas, ambiguidades e trade-offs. A orde
 - **Escolha:** `GET /listings/:listingId` é público e só devolve a versão `published` (senão 404, ignorando `Authorization`). `GET /me/listings/:listingId` é autenticado e devolve a versão mais recente em qualquer status, com `rejection_reason`; anúncio de outro vendedor responde 404. Rejeitado deixa de ser público. Rota `/me/...` escolhida entre duas opções propostas (a outra era `/listings/:id/owner`).
 - **Alternativas consideradas:** endpoint único com guard opcional e regra por papel (proposta inicial da IA) — descartado para deixar o endpoint público o mais restrito possível, com regra única (publicado ou 404).
 - **Trade-off:** o visitante não vê mais anúncios reprovados nem o motivo (divergência do que a SPEC original dizia); em troca, o endpoint público é simples e a projeção no Redis só precisa cobrir `published`.
-- **A confirmar:** `limit` acima do máximo → 400 (em vez de reduzir) e padrões de página 20/50 foram propostos pela IA, sem decisão explícita.
+- **Valores confirmados:** `limit` acima do máximo responde 400 (em vez de reduzir em silêncio, para o cliente notar o erro), com página padrão de 20 e máximo de 50. A IA propôs os números; confirmei.
 
 ### D19 — Projeção do detalhe público no Redis (change `detail-projection`)
 - **Contexto:** o detalhe público é a leitura mais frequente por anúncio; com a D18 ele é só a versão `published`.
 - **Escolha:** só `listing.published` e `listing.archived` geram mensagem no outbox (mesma transação da mudança de status); reprovar não gera, porque não muda o detalhe público. Um único job idempotente `{ listingId }` (do outbox ou de reconstrução por miss) relê o Postgres e faz `SET` (ou `DEL` se não há versão publicada), com concorrência 1. A API lê do Redis com `commandTimeout` e `enableOfflineQueue: false` e cai para o Postgres em miss, erro ou timeout; só pede reconstrução (`jobId` por anúncio) se o anúncio existe publicado, para ids aleatórios não encherem a fila. O relay e o transport saíram do módulo de moderação para um módulo compartilhado do worker, que roteia por tópico para as filas `moderation` e `projection`.
 - **Alternativas consideradas:** tratar cada tópico com lógica própria (aplicar/remover conforme o evento) — descartado: depende da ordem das mensagens. Projetar também o detalhe do dono ou versões reprovadas — descartado: baixa leitura e visibilidade por dono. Métricas de hit/miss — adiadas: ainda não há instrumentação OTel.
 - **Trade-off:** consistência eventual (a janela é o intervalo do relay mais o processamento: após publicar uma nova versão ou arquivar, o público pode ver o estado antigo por instantes), em troca de menos carga no banco e de uma leitura que nunca depende do Redis.
-- **A confirmar:** validade da chave de 24 h (`DETAIL_CACHE_TTL_SECONDS`, motivo técnico: `noeviction` sem TTL só cresce) e timeout de leitura de 200 ms (`DETAIL_CACHE_TIMEOUT_MS`) foram propostos pela IA, sem decisão explícita.
+- **Valores confirmados:** validade da chave de 24 h (`DETAIL_CACHE_TTL_SECONDS`; o Redis roda com `noeviction` e, sem TTL, a memória só cresce) e timeout de leitura de 200 ms (`DETAIL_CACHE_TIMEOUT_MS`; o fallback para o Postgres não deve atrasar a resposta). A IA propôs os números; confirmei.
 
 ### D20 — Seed, imagem Docker e observabilidade (chores, sem change)
 - **Contexto:** faltavam o seed, a imagem de API/worker e a observabilidade prometidas na SPEC; todos são `chore`, sem regra de negócio nova.
@@ -152,7 +155,12 @@ Decisões técnicas, alternativas descartadas, ambiguidades e trade-offs. A orde
 
 ## Tempo gasto
 
-Cerca de 5 h de trabalho no registro da timeline (19:02 → 00:00 em 16/11/2026, com pausas; valor aproximado).
+Cerca de 6 h no total (valor aproximado), no limite superior das 4–6h do desafio:
+
+- ~1 h de preparação antes da timeline: leitura do enunciado e do mock e criação da skill de registro (commit às 12:22 de 16/11/2026);
+- ~5 h registradas na timeline (19:02 → 00:00 em 16/11/2026, com pausas), com a implementação concluída às 00:04 de 17/11/2026.
+
+Boa parte do código foi gerada pela IA em sessões do Claude Code; o tempo inclui a revisão, os testes e a correção do que ela gerou.
 
 ## O que faria diferente com mais tempo
 
@@ -160,3 +168,4 @@ Cerca de 5 h de trabalho no registro da timeline (19:02 → 00:00 em 16/11/2026,
 - Projeção de leitura da listagem (ex.: materialized view ou tabela dedicada) e paginação por cursor.
 - Teste A/B sobre versões de anúncio.
 - DLQ como fila dedicada, Jaeger e Prometheus dedicados.
+- **Commits por task, não por change.** Escolhi um commit por change do OpenSpec, para cada commit ficar verde e rastreável à sua especificação. O custo é um histórico pouco granular: a evolução dentro de cada change só aparece no `tasks.md` arquivado e no `AI_LOG.md`. Faria um commit por task (cada task já era um passo verde) e correções como `fix:` separado; a correção da capa da listagem acabou dentro de um `chore:`.

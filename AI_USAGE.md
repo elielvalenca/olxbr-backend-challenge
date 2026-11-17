@@ -4,11 +4,17 @@
 
 | Ferramenta | Etapas em que usei |
 | --- | --- |
-| Claude Code (Claude Opus) | Refinamento da spec, levantamento de ambiguidades, AGENTS.md, registro de decisões |
+| Claude Code (Claude Opus) | **Planejamento:** refinamento da spec, levantamento de ambiguidades, `AGENTS.md` e as cinco changes do OpenSpec (proposal, specs, design, tasks). **Implementação:** código e testes de cada change (domínio, repositório Drizzle, pipeline de moderação, consultas, projeção, seed, Dockerfile e OTel). **Verificação:** leitura do mock, execução das suítes e smokes contra a stack do Compose. **Documentação:** README, `DECISIONS.md`, `AI_USAGE.md` e a timeline `AI_LOG.md`, pela skill `registro-entrega` |
+| OpenSpec (CLI e comandos `/opsx:*`) | Conduzir cada change em `explore` → `propose` → `apply` → `archive`; as specs arquivadas em `openspec/specs/` documentam o comportamento |
 
 ## Prompts e fluxos que funcionaram
 
 - Pedir à IA para revisar a spec inicial contra o enunciado e o código do mock e listar ambiguidades **com uma recomendação para cada**; respondi item a item ("concordo" ou a minha escolha).
+- **Planejar antes de implementar, em changes pequenas.** A IA propôs quatro changes; separei a modelagem em uma change própria (D13) para revisar versionamento, constraints e migrations isoladamente, já que são caras de desfazer. Em cada change eu revisava proposal, specs e design antes do `apply`, e foi nessa revisão que saíram as divergências do D14 (sem `CHECK` do título) e do D18 (detalhe público e do dono separados).
+- **`AGENTS.md` como contexto persistente.** Registrei ali os princípios (proporcionalidade, "preciso explicar cada linha"), a stack, as convenções e as divergências conhecidas do mock; inclui a regra de consultar a documentação do NestJS 12 e os pacotes oficiais antes de escrever infraestrutura própria (a correção do D10 e a troca do outbox próprio pelo `@nestjs/outbox` no D5 vieram dessa checagem).
+- **Registro durante o trabalho, não no fim.** A skill `registro-entrega` e um hook `UserPromptSubmit` lembram a IA, a cada mensagem, de registrar decisões, divergências e correções na timeline (`scripts/log.sh`, com o relógio do sistema). A regra "não invente o motivo" faz a IA marcar `a confirmar` e perguntar; foi assim que as pendências apareceram e foram fechadas antes da entrega.
+- **Pedir opções e escolher.** Quando havia mais de um desenho razoável (por exemplo, a rota do detalhe do dono, entre duas propostas), pedi as alternativas com prós e contras e decidi eu.
+- **Questionar a viabilidade antes de aceitar.** Perguntei à IA se o fluxo editar (novo draft) → enviar → publicar era consistente com a SPEC antes de fechar a change de ciclo de vida; a resposta apontou que a edição parte da versão mais recente, o que virou o D16.
 
 ## O que rejeitei ou corrigi
 
@@ -30,3 +36,4 @@
 - Rodei um script sobre o seed: os 57 anúncios passam nas validações do enunciado, todos seriam aprovados pela moderação e nenhum tem imagem.
 - Na implementação do modelo de dados, escrevi os testes de integração contra um Postgres real (Testcontainers) e fiz um teste de mutação: removendo os dois índices únicos parciais da migration, quatro testes de invariante passaram a falhar; restaurei o arquivo e a suíte voltou a passar. Também rodei o fluxo documentado do README a partir de uma cópia limpa (instalar, migrar, typecheck, lint e as três suítes) e conferi `db:reset` e a recusa em produção no banco do Compose.
 - Na `moderation-pipeline`: teste de integração de ponta a ponta (Postgres + Redis em Testcontainers e um mock HTTP em memória) cobrindo aprovação, reprovação, `500` seguido de sucesso, `429` com `Retry-After`, `400`, tentativas esgotadas e reprocessamento; mais um smoke com API + worker contra o mock real do Compose (20% de `500`): 8 anúncios, 6 publicados e 2 reprovados com os motivos esperados, nenhuma falha definitiva.
+- Gerei uma coleção do postman com o Newman e executei testes manuais no Postman para ter a segurança que estava funcionando contra testes automatizados também

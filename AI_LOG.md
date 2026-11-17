@@ -101,3 +101,4 @@ Horários no fuso local. Detalhes das decisões em [DECISIONS.md](DECISIONS.md);
 - `00:01` **correcao-ia** — WorkerMetricsModule registrava ResilienceModule.forRoot() de novo; os testes não pegaram, o boot do worker em container falhou; corrigido e coberto no teste de pipeline
 - `00:01` **validacao** — stack completa no Compose: 57 anúncios semeados e publicados, 57 projeções no Redis, métricas e traços no Grafana, painel provisionado
 - `00:04` **correcao-ia** — capa da listagem: subconsulta com colunas sem qualificar comparava listing_id consigo mesmo; só apareceu com o seed (anúncios com imagens diferentes); corrigido com colunas qualificadas e teste de regressão
+- `00:49` **trade-off** — Um commit por change (verde e rastreável à spec) x histórico pouco granular; num fluxo real de desenvolvimento eu faria commits por task e fix: separado, podendo cada change ser um PR separado
