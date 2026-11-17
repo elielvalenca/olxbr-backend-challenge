@@ -15,6 +15,14 @@ export interface ListingContent {
   imageUrls: string[];
 }
 
+/** Versão mais recente de um anúncio, com o necessário para decidir uma escrita. */
+export interface LatestVersion {
+  ref: VersionRef;
+  sellerId: string;
+  status: ListingStatus;
+  content: ListingContent;
+}
+
 export interface TransitionDetails {
   actor: Actor;
   /** Motivo (ex.: `rejection_reason` da moderação); vai para a versão rejeitada e para a auditoria. */
@@ -36,8 +44,36 @@ export interface ListingRepository {
     actor: Actor;
   }): Promise<VersionRef>;
 
-  /** Cria a próxima versão em `draft` copiando conteúdo e imagens da versão `from`. */
-  createNextVersion(from: VersionRef, actor: Actor): Promise<VersionRef>;
+  /** Versão de maior número do anúncio, ou `null` se o anúncio não existe. */
+  findLatest(listingId: string): Promise<LatestVersion | null>;
+
+  /**
+   * Cria a próxima versão em `draft` copiando conteúdo e imagens da versão
+   * `from`; `content`, quando informado, substitui a cópia na mesma transação.
+   */
+  createNextVersion(
+    from: VersionRef,
+    actor: Actor,
+    content?: ListingContent,
+  ): Promise<VersionRef>;
+
+  /**
+   * Substitui o conteúdo (e as imagens) de um `draft` no lugar. Não é mudança
+   * de status, então não gera evento. Conflito se a versão deixou de ser `draft`.
+   */
+  updateDraft(ref: VersionRef, content: ListingContent): Promise<void>;
+
+  /**
+   * `draft` → `in_review` com evento e a mensagem `listing.submitted` do outbox,
+   * na mesma transação (a moderação consome a mensagem).
+   */
+  submit(ref: VersionRef, actor: Actor): Promise<void>;
+
+  /**
+   * Arquiva todas as versões não arquivadas do anúncio, com um evento por
+   * versão. Conflito se alguma estiver `in_review` ou se não houver o que arquivar.
+   */
+  archiveAll(listingId: string, actor: Actor): Promise<void>;
 
   /** Muda o status de uma versão e registra o evento. A validade da transição é do domínio. */
   transition(

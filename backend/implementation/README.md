@@ -48,12 +48,51 @@ listings                    PK (listing_id, version)
 - **Limites de negócio ficam na aplicação**, não no banco: tamanho do título, categorias válidas e número máximo de imagens são ajustáveis por configuração, sem migration.
 - Decisões e alternativas: D14 e D15 em [`DECISIONS.md`](../../DECISIONS.md).
 
+## Autenticação
+
+JWT HS256, sem cadastro: o `sub` do token é o `seller_id`. Defina `JWT_SECRET` no `.env` (mínimo 32 caracteres; a aplicação não sobe sem ele) e emita um token:
+
+```bash
+pnpm auth:token seller-1                      # expira em 24h
+pnpm auth:token seller-1 --expires-in 1h
+```
+
+Use-o como `Authorization: Bearer <token>`. Token ausente, inválido, expirado ou com outro algoritmo responde `401`.
+
+## API de escrita
+
+Todos os endpoints exigem token e estão no Swagger (`/docs`). A resposta de sucesso é sempre `{ listingId, version, status }`.
+
+| Método e rota | O que faz | Erros |
+| --- | --- | --- |
+| `POST /listings` | Cria o anúncio (versão 1, `draft`) — `201` | `400` |
+| `PATCH /listings/:listingId` | Edita (parcial). `draft`: no lugar. `published`/`rejected`: cria nova versão `draft` a partir da versão mais recente | `400` `404` `409` |
+| `POST /listings/:listingId/submit` | `draft` → `in_review` e grava a mensagem `listing.submitted` no outbox | `404` `409` |
+| `POST /listings/:listingId/archive` | Arquiva todas as versões não arquivadas | `404` `409` |
+
+Corpo de criação (e, parcialmente, de edição):
+
+```json
+{
+  "title": "Bicicleta aro 29 seminova",
+  "description": "Pouco uso, revisada.",
+  "priceCents": 150000,
+  "category": "esportes",
+  "imageUrls": ["https://cdn.example.com/a.jpg"]
+}
+```
+
+- Título 10–100 caracteres (após `trim`); descrição obrigatória (até 5000); preço inteiro em centavos > 0; categoria entre `eletronicos`, `moveis`, `veiculos`, `imoveis`, `esportes`, `colecionaveis`; 1–10 imagens `https`. Violações respondem `400` com `errors: [{ field, message }]`. Faixa de preço por categoria é da moderação, não é validada aqui.
+- `404` vale também para anúncio de **outro vendedor** (não se revela que ele existe).
+- `409`: transição inválida (ex.: enviar quem não é rascunho), edição de versão `in_review` ou `archived`, arquivar com versão `in_review` e edição concorrente.
+- A edição parte sempre da **versão mais recente**, mesmo `rejected` (D16). Uma versão em `draft` só vai para a moderação no `submit`.
+
 ## Testes
 
 | Comando | O que roda |
 | --- | --- |
 | `pnpm test` | Unitários (`*.spec.ts`) |
-| `pnpm test:e2e` | HTTP com o app Nest (`test/*.e2e-spec.ts`) |
+| `pnpm test:e2e` | HTTP com o app Nest (`test/*.e2e-spec.ts`); usa o Postgres do Compose, com `pnpm db:migrate` já aplicado |
 | `pnpm test:int` | Integração com Postgres real via Testcontainers (`*.int-spec.ts`); exige Docker |
 
 ## Outros comandos

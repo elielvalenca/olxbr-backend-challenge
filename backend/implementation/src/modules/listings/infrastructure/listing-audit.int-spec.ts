@@ -6,6 +6,7 @@ import {
   PG,
   pgErrorCode,
 } from '../../../../test/support/listing-fixtures.js';
+import { createTestOutbox } from '../../../../test/support/outbox.js';
 import {
   startTestDatabase,
   type TestDatabase,
@@ -18,14 +19,17 @@ import { listingAuditEvents, listings } from './schema.js';
 describe('listing-audit', () => {
   let testDb: TestDatabase;
   let repository: DrizzleListingRepository;
+  let testOutbox: Awaited<ReturnType<typeof createTestOutbox>>;
   const db = () => testDb.db;
 
   beforeAll(async () => {
     testDb = await startTestDatabase();
-    repository = new DrizzleListingRepository(testDb.db);
+    testOutbox = await createTestOutbox(testDb.db);
+    repository = new DrizzleListingRepository(testDb.db, testOutbox.outbox);
   });
 
   afterAll(async () => {
+    await testOutbox.close();
     await testDb.stop();
   });
 

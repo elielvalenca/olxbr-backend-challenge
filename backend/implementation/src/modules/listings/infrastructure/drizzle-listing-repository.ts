@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, ne, sql } from 'drizzle-orm';
+import { Outbox } from '@nestjs/outbox';
+import { and, asc, desc, eq, ne, sql } from 'drizzle-orm';
 import {
   DATABASE,
   type Database,
@@ -17,6 +18,7 @@ import {
 } from '../domain/listing-errors.js';
 import type { ListingStatus } from '../domain/listing-status.js';
 import type {
+  LatestVersion,
   ListingContent,
   ListingRepository,
   TransitionDetails,
@@ -27,12 +29,21 @@ import { listingAuditEvents, listingImages, listings } from './schema.js';
 const actorId = (actor: Actor): string =>
   actor.type === 'seller' ? actor.sellerId : 'system';
 
+const imagesOf = (ref: VersionRef) =>
+  and(
+    eq(listingImages.listingId, ref.listingId),
+    eq(listingImages.version, ref.version),
+  );
+
 const versionIs = (ref: VersionRef) =>
   and(eq(listings.listingId, ref.listingId), eq(listings.version, ref.version));
 
 @Injectable()
 export class DrizzleListingRepository implements ListingRepository {
-  constructor(@Inject(DATABASE) private readonly db: Database) {}
+  constructor(
+    @Inject(DATABASE) private readonly db: Database,
+    private readonly outbox: Outbox<Transaction>,
+  ) {}
 
   createFirstVersion(input: {
     sellerId: string;
@@ -51,21 +62,45 @@ export class DrizzleListingRepository implements ListingRepository {
         category: content.category,
         status: 'draft',
       });
-      if (content.imageUrls.length > 0) {
-        await tx.insert(listingImages).values(
-          content.imageUrls.map((url, position) => ({
-            ...ref,
-            position,
-            url,
-          })),
-        );
-      }
+      await this.insertImages(tx, ref, content.imageUrls);
       await this.recordEvent(tx, ref, null, 'draft', { actor });
       return ref;
     });
   }
 
-  createNextVersion(from: VersionRef, actor: Actor): Promise<VersionRef> {
+  async findLatest(listingId: string): Promise<LatestVersion | null> {
+    const [row] = await this.db
+      .select()
+      .from(listings)
+      .where(eq(listings.listingId, listingId))
+      .orderBy(desc(listings.version))
+      .limit(1);
+    if (!row) return null;
+    const ref: VersionRef = { listingId, version: row.version };
+    const images = await this.db
+      .select({ url: listingImages.url })
+      .from(listingImages)
+      .where(imagesOf(ref))
+      .orderBy(asc(listingImages.position));
+    return {
+      ref,
+      sellerId: row.sellerId,
+      status: row.status,
+      content: {
+        title: row.title,
+        description: row.description,
+        priceCents: row.priceCents,
+        category: row.category,
+        imageUrls: images.map((i) => i.url),
+      },
+    };
+  }
+
+  createNextVersion(
+    from: VersionRef,
+    actor: Actor,
+    content?: ListingContent,
+  ): Promise<VersionRef> {
     return this.atomically(from.listingId, async (tx) => {
       const [source] = await tx.select().from(listings).where(versionIs(from));
       if (!source) {
@@ -83,12 +118,17 @@ export class DrizzleListingRepository implements ListingRepository {
       await tx.insert(listings).values({
         ...next,
         sellerId: source.sellerId,
-        title: source.title,
-        description: source.description,
-        priceCents: source.priceCents,
-        category: source.category,
+        title: content?.title ?? source.title,
+        description: content?.description ?? source.description,
+        priceCents: content?.priceCents ?? source.priceCents,
+        category: content?.category ?? source.category,
         status: 'draft',
       });
+      if (content) {
+        await this.insertImages(tx, next, content.imageUrls);
+        await this.recordEvent(tx, next, null, 'draft', { actor });
+        return next;
+      }
       await tx.insert(listingImages).select(
         tx
           .select({
@@ -107,6 +147,71 @@ export class DrizzleListingRepository implements ListingRepository {
       );
       await this.recordEvent(tx, next, null, 'draft', { actor });
       return next;
+    });
+  }
+
+  updateDraft(ref: VersionRef, content: ListingContent): Promise<void> {
+    return this.atomically(ref.listingId, async (tx) => {
+      const [current] = await tx
+        .select({ status: listings.status })
+        .from(listings)
+        .where(versionIs(ref))
+        .for('update');
+      if (!current) {
+        throw new ListingVersionNotFoundError(ref.listingId, ref.version);
+      }
+      if (current.status !== 'draft') {
+        throw new ListingVersionConflictError(ref.listingId);
+      }
+      await tx
+        .update(listings)
+        .set({
+          title: content.title,
+          description: content.description,
+          priceCents: content.priceCents,
+          category: content.category,
+          updatedAt: new Date(),
+        })
+        .where(versionIs(ref));
+      await tx.delete(listingImages).where(imagesOf(ref));
+      await this.insertImages(tx, ref, content.imageUrls);
+    });
+  }
+
+  submit(ref: VersionRef, actor: Actor): Promise<void> {
+    return this.atomically(ref.listingId, async (tx) => {
+      await this.applyTransition(tx, ref, 'in_review', { actor }, 'draft');
+      await this.outbox.add(tx, {
+        topic: 'listing.submitted',
+        payload: { listingId: ref.listingId, version: ref.version },
+      });
+    });
+  }
+
+  archiveAll(listingId: string, actor: Actor): Promise<void> {
+    return this.atomically(listingId, async (tx) => {
+      const versions = await tx
+        .select({ version: listings.version, status: listings.status })
+        .from(listings)
+        .where(
+          and(
+            eq(listings.listingId, listingId),
+            ne(listings.status, 'archived'),
+          ),
+        )
+        .orderBy(asc(listings.version))
+        .for('update');
+      if (
+        versions.length === 0 ||
+        versions.some((v) => v.status === 'in_review')
+      ) {
+        throw new ListingVersionConflictError(listingId);
+      }
+      for (const { version } of versions) {
+        await this.applyTransition(tx, { listingId, version }, 'archived', {
+          actor,
+        });
+      }
     });
   }
 
@@ -155,6 +260,7 @@ export class DrizzleListingRepository implements ListingRepository {
     ref: VersionRef,
     to: ListingStatus,
     { actor, reason, metadata }: TransitionDetails,
+    expectedFrom?: ListingStatus,
   ): Promise<void> {
     const [current] = await tx
       .select({ status: listings.status })
@@ -163,6 +269,10 @@ export class DrizzleListingRepository implements ListingRepository {
       .for('update');
     if (!current) {
       throw new ListingVersionNotFoundError(ref.listingId, ref.version);
+    }
+    // O status pode ter mudado desde a leitura que motivou a operação.
+    if (expectedFrom && current.status !== expectedFrom) {
+      throw new ListingVersionConflictError(ref.listingId);
     }
 
     const now = new Date();
@@ -181,6 +291,17 @@ export class DrizzleListingRepository implements ListingRepository {
       reason,
       metadata,
     });
+  }
+
+  private async insertImages(
+    tx: Transaction,
+    ref: VersionRef,
+    urls: string[],
+  ): Promise<void> {
+    if (urls.length === 0) return;
+    await tx
+      .insert(listingImages)
+      .values(urls.map((url, position) => ({ ...ref, position, url })));
   }
 
   private async recordEvent(

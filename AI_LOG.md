@@ -59,3 +59,16 @@ Horários no fuso local. Detalhes das decisões em [DECISIONS.md](DECISIONS.md);
 - `22:42` **marco** — listing-data-model arquivada (2026-11-16); specs listing-versioning e listing-audit promovidas a openspec/specs/
 - `22:44` **decisao** — Convenção: arquivamento da change em commit próprio (chore), separado do commit de planejamento+implementação; motivo: a confirmar
 - `22:44` **marco** — Commit 8: arquivamento da listing-data-model
+- `22:49` **pedido** — Seguir com a próxima change do plano: listing-lifecycle (/opsx:propose)
+- `22:49` **proposta** — IA gerou specs (3 capacidades), design e tasks da listing-lifecycle; premissas a confirmar: edição via PATCH parcial sobre a versão mais recente, arquivamento do anúncio inteiro (recusa com in_review), 404 para anúncio de outro vendedor, validação com zod, guard JWT próprio, limite da descrição 5000
+- `22:49` **marco** — Planejamento da listing-lifecycle completo (proposal, specs, design, tasks); validate ok
+- `22:54` **validacao** — Usuário questionou a viabilidade do fluxo editar (novo draft) → enviar (moderação) → publicar; IA confirmou que é consistente com a SPEC e apontou que edição parte da versão mais recente, mesmo rejeitada (a confirmar com o usuário)
+- `23:00` **decisao** — Edição parte da versão mais recente, mesmo rejeitada: está mais próxima da intenção do vendedor, que só aplica os ajustes da moderação. Aceito o drift com a versão em produção; função de descartar versão fica sem decisão por ora, para aprender com o uso
+- `23:00` **descarte** — Base da edição na última versão published (descartada); função de descartar versão adiada, sem decisão
+- `23:03` **marco** — listing-lifecycle: grupos 1 (domínio) e 2 (repositório + outbox) implementados e testados
+- `23:04` **correcao-ia** — O script planejado 'pnpm token' é comando reservado do pnpm (ERR_PNPM_NOT_IMPLEMENTED); renomeado para 'pnpm auth:token' em package.json, tasks e design
+- `23:04` **marco** — listing-lifecycle: grupo 4 (autenticação JWT, JWT_SECRET, script auth:token) concluído
+- `23:08` **decisao** — D16 registrada em DECISIONS.md (edição sobre a versão mais recente, arquivar anúncio inteiro, 404 para outro vendedor, zod, guard JWT próprio); descartar versão adiado
+- `23:08` **validacao** — listing-lifecycle: typecheck, lint, 46 unitários, 12 e2e e 78 de integração passando
+- `23:08` **marco** — listing-lifecycle: 16/16 tasks implementadas (ainda sem commit)
+- `23:10` **marco** — Commit 9: change listing-lifecycle (planejamento + implementação)

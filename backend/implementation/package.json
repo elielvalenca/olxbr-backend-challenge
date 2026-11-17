@@ -25,13 +25,15 @@
     "test:int": "vitest run --config ./vitest.config.int.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "nest build && node --env-file-if-exists=.env dist/cli/db.js migrate",
-    "db:reset": "nest build && node --env-file-if-exists=.env dist/cli/db.js reset"
+    "db:reset": "nest build && node --env-file-if-exists=.env dist/cli/db.js reset",
+    "auth:token": "nest build && node --env-file-if-exists=.env dist/cli/token.js"
   },
   "dependencies": {
     "@nestjs/common": "^12.5.0",
     "@nestjs/config": "^12.1.1",
     "@nestjs/core": "^12.5.0",
     "@nestjs/drizzle": "^0.0.2",
+    "@nestjs/jwt": "^12.0.5",
     "@nestjs/outbox": "^0.1.4",
     "@nestjs/platform-express": "^12.5.0",
     "@nestjs/swagger": "^12.1.2",

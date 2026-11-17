@@ -89,9 +89,24 @@ Decisões técnicas, alternativas descartadas, ambiguidades e trade-offs. A orde
 - **Trade-off:** ao atualizar o pacote, preciso gerar uma nova migration com o SQL novo.
 - **Na implementação:** o `@nestjs/outbox` está na versão 0.1.4 (pré-1.0), então o SQL fica fixado numa migration nossa (`drizzle/0001_outbox.sql`) e um teste de integração garante que o store inicia com `migrate: false` e falha com `OutboxSchemaError`, em vez de migrar sozinho, num banco sem migrations. `pnpm db:migrate` e `pnpm db:reset` rodam o mesmo histórico; o reset recusa `NODE_ENV=production`.
 
+### D16 — Ciclo de vida e escrita de anúncios (change `listing-lifecycle`)
+- **Contexto:** a SPEC define o ciclo de status, mas deixa em aberto qual versão a edição usa como base, o que "arquivar" afeta e como a API trata anúncio de outro vendedor.
+- **Escolha:**
+  - **Edição parcial (`PATCH`) sobre a versão mais recente**, mesmo `rejected`: `draft` é alterado no lugar; `published`/`rejected` geram nova versão `draft` com as alterações, numa única transação; `in_review`/`archived` respondem `409`. **Motivo (meu):** a versão rejeitada está mais próxima da intenção do vendedor, que só precisa aplicar os ajustes pedidos pela moderação.
+  - **Editar e enviar são passos separados:** o `submit` move o rascunho para `in_review` e grava `listing.submitted` no outbox na mesma transação; a publicação é da moderação.
+  - **Arquivar o anúncio inteiro:** todas as versões não arquivadas vão para `archived`, com um evento por versão; recusado (`409`) se houver versão `in_review`.
+  - **Anúncio de outro vendedor responde `404`**, igual a inexistente.
+  - **Validação com zod** na aplicação (mesmo esquema na criação, na edição mesclada e no futuro seed); limites como constantes (`LISTING_LIMITS`), descrição até 5000 caracteres (valor assumido, a SPEC deixou em aberto).
+  - **JWT:** guard próprio sobre `@nestjs/jwt`, algoritmo fixo em HS256, `sub` obrigatório; `JWT_SECRET` obrigatório com ≥ 32 caracteres. Script `pnpm auth:token`.
+- **Alternativas consideradas:** partir da última versão `published` na edição — descartada (descarta a correção já feita sobre o conteúdo reprovado); arquivar só a versão mais recente — descartada (deixaria uma versão publicada no ar após o pedido de arquivar); `class-validator` e `@nestjs/passport` — descartados (mais dependências e abstração para o que ~20 linhas resolvem); `PUT` com corpo completo — descartado (o caso de uso é corrigir um campo).
+- **Divergência:** o nome `pnpm token` planejado pela IA colide com um comando reservado do pnpm (`ERR_PNPM_NOT_IMPLEMENTED`); o script ficou `pnpm auth:token`.
+- **Trade-off:** a versão em produção e a nova podem divergir. Uma função de **descartar versão** (voltar a partir da publicada) fica sem decisão, para aprender com o uso. Outro: `JWT_SECRET` obrigatório também para `db:migrate` e para o worker, pois todos validam o mesmo esquema de env.
+- **Na implementação:** `submit` e `archiveAll` revalidam o status dentro da transação (com lock), então uma corrida entre a leitura e a escrita vira `409`. Duas edições simultâneas nunca criam duas versões abertas: a que perde ou cai no rascunho recém-criado ou recebe conflito. O edit de rascunho não gera evento de auditoria (a trilha é só de status).
+
 ## Débitos técnicos
 
 - **Sem rotina de limpeza do outbox:** não configuramos retenção das mensagens publicadas nem `OutboxInbox.prune()`; dead letters só são expurgadas manualmente (`OutboxDeadLetters.purge`). Em produção: rotina de expurgo por idade.
+- **Sem descartar versão:** o vendedor não consegue voltar da versão rejeitada/rascunho para a publicada; decisão adiada de propósito (ver D16).
 - **Sem DLQ dedicada:** jobs falhos ficam no set `failed` do BullMQ e são reprocessados por script (ver D6).
 
 ## Requisitos ambíguos e interpretações
