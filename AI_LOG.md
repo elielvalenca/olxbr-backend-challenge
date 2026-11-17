@@ -74,3 +74,9 @@ Horários no fuso local. Detalhes das decisões em [DECISIONS.md](DECISIONS.md);
 - `23:10` **marco** — Commit 9: change listing-lifecycle (planejamento + implementação)
 - `23:10` **marco** — listing-lifecycle arquivada (2026-11-16); specs listing-lifecycle, listing-authoring e seller-authentication promovidas a openspec/specs/
 - `23:10` **marco** — Commit 10: arquivamento da listing-lifecycle
+- `23:25` **pedido** — implementar a próxima change (moderation-pipeline)
+- `23:25` **decisao** — D17 — pipeline de moderação: idempotência no banco, retry no BullMQ, breaker no resilience, worker manual (a confirmar com o candidato)
+- `23:25` **correcao-ia** — ioredis é peer opcional do BullMQ 6 (loop de erro/OOM); janela do breaker precisa comportar minimumCalls
+- `23:25` **validacao** — int-spec ponta a ponta (7 cenários) + smoke API/worker contra o mock real: 6 publicados, 2 reprovados, 0 falhas
+- `23:25` **marco** — moderation-pipeline implementada (tasks 1–5), sem commit
+- `23:27` **marco** — commit da moderation-pipeline e arquivamento

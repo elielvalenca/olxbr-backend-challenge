@@ -87,6 +87,15 @@ Corpo de criação (e, parcialmente, de edição):
 - `409`: transição inválida (ex.: enviar quem não é rascunho), edição de versão `in_review` ou `archived`, arquivar com versão `in_review` e edição concorrente.
 - A edição parte sempre da **versão mais recente**, mesmo `rejected` (D16). Uma versão em `draft` só vai para a moderação no `submit`.
 
+## Moderação assíncrona
+
+`submit` grava `listing.submitted` no outbox. O worker publica a mensagem na fila BullMQ `moderation` (relay do `@nestjs/outbox`), chama o mock e aplica o resultado em uma transação: `published` (arquivando a versão publicada anterior) ou `rejected` com `rejection_reason`.
+
+- **Idempotente:** se a versão já não está `in_review`, o job é descartado sem alterar nada.
+- **Falhas transitórias** (`5xx`, timeout, rede): retry com backoff exponencial e jitter (BullMQ). `429` e circuito aberto pausam o worker sem gastar tentativa; `400` falha na hora.
+- **Falha definitiva nunca vira `rejected`:** a versão permanece `in_review`, a auditoria ganha um evento `moderation_failed` e o job fica no set `failed`. Depois de resolver a causa: `pnpm moderation:reprocess` (com o Redis acima).
+- Limite global de 5 jobs/s (Redis), timeout e circuit breaker configuráveis por variáveis `MODERATION_*` (ver `.env.example`). O estado do breaker é por processo do worker.
+
 ## Testes
 
 | Comando | O que roda |

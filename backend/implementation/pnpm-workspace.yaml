@@ -7,3 +7,5 @@ allowBuilds:
   cpu-features: false
   protobufjs: false
   ssh2: false
+  # addon nativo opcional do msgpackr (BullMQ); há fallback em JS
+  msgpackr-extract: false

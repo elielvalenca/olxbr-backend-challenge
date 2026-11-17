@@ -115,8 +115,9 @@ Em `backend/implementation/`, com Node 22 (`nvm use`):
 | `pnpm typecheck` · `pnpm lint` · `pnpm format` | Tipos, oxlint, Prettier |
 | `pnpm test` · `pnpm test:e2e` · `pnpm test:int` | Unitários (`*.spec.ts`) · e2e (`test/*.e2e-spec.ts`) · integração com Postgres via Testcontainers (`*.int-spec.ts`, exige Docker) |
 | `pnpm db:migrate` · `pnpm db:reset` · `pnpm db:generate` | Aplica migrations · apaga e recria o banco (nunca em produção) · gera migration a partir do schema Drizzle |
+| `pnpm moderation:reprocess` | Reenfileira os jobs de moderação que falharam definitivamente (exige Redis) |
 | `pnpm auth:token <sellerId> [--expires-in 24h]` | Emite um JWT HS256 (`sub` = `seller_id`); exige `JWT_SECRET` (≥ 32 caracteres) |
 
-_A completar: seed, reprocessar jobs falhos._
+_A completar: seed._
 
 Migrations: o histórico único é `drizzle/` (inclui o SQL do `@nestjs/outbox`). Nunca edite uma migration já criada; gere uma nova.

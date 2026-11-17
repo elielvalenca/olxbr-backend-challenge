@@ -29,6 +29,11 @@ export interface TransitionDetails {
   reason?: string;
   /** Metadados livres, hoje sem uso; reservados para enriquecimento vindo da API. */
   metadata?: Record<string, unknown>;
+  /**
+   * Status que a versão deve ter, verificado sob lock na própria transação.
+   * Se for outro, lança `ListingVersionConflictError` e nada é gravado.
+   */
+  expectedFrom?: ListingStatus;
 }
 
 /**
@@ -43,6 +48,9 @@ export interface ListingRepository {
     content: ListingContent;
     actor: Actor;
   }): Promise<VersionRef>;
+
+  /** Uma versão específica (a moderação trabalha numa versão, não na mais recente), ou `null`. */
+  findVersion(ref: VersionRef): Promise<LatestVersion | null>;
 
   /** Versão de maior número do anúncio, ou `null` se o anúncio não existe. */
   findLatest(listingId: string): Promise<LatestVersion | null>;
@@ -80,6 +88,15 @@ export interface ListingRepository {
     ref: VersionRef,
     to: ListingStatus,
     details: TransitionDetails,
+  ): Promise<void>;
+
+  /**
+   * Registra uma falha definitiva de integração com a moderação: evento de
+   * auditoria `in_review` → `in_review` com motivo `moderation_failed`. O status não muda.
+   */
+  recordModerationFailure(
+    ref: VersionRef,
+    failure: { error: string; attempts: number },
   ): Promise<void>;
 
   /**

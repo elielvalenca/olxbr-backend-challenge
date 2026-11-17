@@ -76,7 +76,18 @@ export class DrizzleListingRepository implements ListingRepository {
       .orderBy(desc(listings.version))
       .limit(1);
     if (!row) return null;
-    const ref: VersionRef = { listingId, version: row.version };
+    return this.toLatestVersion({ listingId, version: row.version }, row);
+  }
+
+  async findVersion(ref: VersionRef): Promise<LatestVersion | null> {
+    const [row] = await this.db.select().from(listings).where(versionIs(ref));
+    return row ? this.toLatestVersion(ref, row) : null;
+  }
+
+  private async toLatestVersion(
+    ref: VersionRef,
+    row: typeof listings.$inferSelect,
+  ): Promise<LatestVersion> {
     const images = await this.db
       .select({ url: listingImages.url })
       .from(listingImages)
@@ -180,12 +191,28 @@ export class DrizzleListingRepository implements ListingRepository {
 
   submit(ref: VersionRef, actor: Actor): Promise<void> {
     return this.atomically(ref.listingId, async (tx) => {
-      await this.applyTransition(tx, ref, 'in_review', { actor }, 'draft');
+      await this.applyTransition(tx, ref, 'in_review', {
+        actor,
+        expectedFrom: 'draft',
+      });
       await this.outbox.add(tx, {
         topic: 'listing.submitted',
         payload: { listingId: ref.listingId, version: ref.version },
       });
     });
+  }
+
+  recordModerationFailure(
+    ref: VersionRef,
+    failure: { error: string; attempts: number },
+  ): Promise<void> {
+    return this.atomically(ref.listingId, (tx) =>
+      this.recordEvent(tx, ref, 'in_review', 'in_review', {
+        actor: SYSTEM_ACTOR,
+        reason: 'moderation_failed',
+        metadata: failure,
+      }),
+    );
   }
 
   archiveAll(listingId: string, actor: Actor): Promise<void> {
@@ -259,8 +286,7 @@ export class DrizzleListingRepository implements ListingRepository {
     tx: Transaction,
     ref: VersionRef,
     to: ListingStatus,
-    { actor, reason, metadata }: TransitionDetails,
-    expectedFrom?: ListingStatus,
+    { actor, reason, metadata, expectedFrom }: TransitionDetails,
   ): Promise<void> {
     const [current] = await tx
       .select({ status: listings.status })

@@ -103,6 +103,18 @@ Decisões técnicas, alternativas descartadas, ambiguidades e trade-offs. A orde
 - **Trade-off:** a versão em produção e a nova podem divergir. Uma função de **descartar versão** (voltar a partir da publicada) fica sem decisão, para aprender com o uso. Outro: `JWT_SECRET` obrigatório também para `db:migrate` e para o worker, pois todos validam o mesmo esquema de env.
 - **Na implementação:** `submit` e `archiveAll` revalidam o status dentro da transação (com lock), então uma corrida entre a leitura e a escrita vira `409`. Duas edições simultâneas nunca criam duas versões abertas: a que perde ou cai no rascunho recém-criado ou recebe conflito. O edit de rascunho não gera evento de auditoria (a trilha é só de status).
 
+### D17 — Pipeline de moderação (change `moderation-pipeline`)
+- **Contexto:** a SPEC define a fila (outbox → BullMQ → worker), mas deixa em aberto como moderar com idempotência, onde ficam o retry e o circuit breaker e como registrar falha definitiva. _Estas escolhas partiram da proposta da IA (design da change); a confirmar com o candidato._
+- **Escolha:**
+  - **Idempotência no banco:** o resultado é aplicado com `expectedFrom: 'in_review'` sob lock (`FOR UPDATE`) na mesma transação que arquiva a versão anterior; se outro processamento ganhou, a transação inteira é desfeita e o job é descartado.
+  - **Retry só no BullMQ** (5 tentativas, backoff exponencial com jitter); a política do `@nestjs/resilience` fica com timeout + circuit breaker e `retry: false`, para não multiplicar tentativas. Só `5xx`/timeout/rede contam para o circuito; `429` e `400` não.
+  - **`429` e circuito aberto** pausam o worker (`rateLimit` + `Worker.RateLimitError`) sem gastar tentativa; `400` vira `UnrecoverableError`.
+  - **Worker criado à mão** (`new Worker`), não com `@Processor`, porque limite por segundo e concorrência vêm da configuração validada e as opções do decorator são estáticas.
+  - **Falha definitiva:** a versão continua `in_review`; evento de auditoria `in_review → in_review` com motivo `moderation_failed` (erro e tentativas em `metadata`); o job fica no set `failed` e `pnpm moderation:reprocess` o reenfileira com as tentativas zeradas.
+  - **Fora desta change:** mensagens `listing.published`/`listing.rejected` no outbox e a fila `projection`, que entram em `detail-projection`.
+- **Alternativas consideradas:** ler o status e decidir fora da transação — descartada (janela de corrida); novo status ou tabela para falhas — descartada (a auditoria já é a trilha); `@Processor` com `process.env` na carga do módulo — descartada (foge da validação de env).
+- **Trade-off:** o estado do circuit breaker é por processo (com mais de um worker, cada um abre o seu); o limite por segundo continua global, via Redis. `removeOnComplete` limitado permite republicar uma mensagem já concluída; o caso de uso idempotente descarta o job extra.
+
 ## Débitos técnicos
 
 - **Sem rotina de limpeza do outbox:** não configuramos retenção das mensagens publicadas nem `OutboxInbox.prune()`; dead letters só são expurgadas manualmente (`OutboxDeadLetters.purge`). Em produção: rotina de expurgo por idade.

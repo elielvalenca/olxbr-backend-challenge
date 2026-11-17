@@ -11,7 +11,27 @@ describe('validateEnv', () => {
       PORT: 3000,
       DATABASE_URL,
       JWT_SECRET,
+      REDIS_URL: 'redis://localhost:6379',
+      MODERATION_API_URL: 'http://localhost:8787',
+      MODERATION_TIMEOUT_MS: 3000,
+      MODERATION_ATTEMPTS: 5,
+      MODERATION_BACKOFF_MS: 1000,
+      MODERATION_RATE_LIMIT_PER_SECOND: 5,
+      MODERATION_CONCURRENCY: 5,
+      MODERATION_BREAKER_FAILURE_RATE: 50,
+      MODERATION_BREAKER_MIN_CALLS: 5,
+      MODERATION_BREAKER_OPEN_MS: 10_000,
+      OUTBOX_POLL_INTERVAL_MS: 1000,
     });
+  });
+
+  it('rejeita configuração de moderação inválida', () => {
+    expect(() => validateEnv({ ...base, MODERATION_ATTEMPTS: '0' })).toThrow(
+      /MODERATION_ATTEMPTS/,
+    );
+    expect(() =>
+      validateEnv({ ...base, MODERATION_BREAKER_FAILURE_RATE: '150' }),
+    ).toThrow(/MODERATION_BREAKER_FAILURE_RATE/);
   });
 
   it('converte PORT de string para número', () => {
