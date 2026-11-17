@@ -4,6 +4,21 @@ Serviço de inserção, listagem, detalhe e moderação assíncrona de anúncios
 
 > Especificação em [`SPEC.md`](SPEC.md); decisões em [`../../DECISIONS.md`](../../DECISIONS.md); planejamento por changes em [`../../openspec/`](../../openspec/).
 
+## Onde está cada requisito do enunciado
+
+O núcleo do desafio são quatro requisitos; o resto (versionamento, projeção no Redis, observabilidade) é extra assumido em [D1](../../DECISIONS.md). Caminhos relativos a `src/modules/`:
+
+| Requisito | Onde está | Teste que o cobre |
+| --- | --- | --- |
+| **Criar anúncio** (título 10–100, preço > 0, 1+ imagem) | `POST /listings` em `listings/http/listings.controller.ts`; regras em `listings/application/listing-content.ts` (zod); caso de uso `create-listing.ts` | `listing-content.spec.ts`, `test/listings.e2e-spec.ts` |
+| **Listar** (paginação e filtro por categoria) | `GET /listings` em `listings/http/listing-queries.controller.ts`; `list-published-listings.ts`; consulta em `listings/infrastructure/drizzle-listing-queries.ts` | `drizzle-listing-queries.int-spec.ts`, `test/listing-queries.e2e-spec.ts` |
+| **Moderação automática** (`published` ou `rejected` com motivo) | Caso de uso `moderation/application/moderate-listing.ts`; cliente do mock em `moderation/infrastructure/http-moderation-gateway.ts`; consumidor da fila em `moderation-worker.ts`; fila a partir do outbox em `../shared/outbox/` | `moderate-listing.spec.ts`, `http-moderation-gateway.spec.ts`, `moderation-pipeline.int-spec.ts` (ponta a ponta, com `500`, `429` e `400`) |
+| **Detalhe** (dados e status; motivo da reprovação) | Público: `GET /listings/:listingId` (só `published`, via `projection/` com fallback no Postgres). Do dono: `GET /me/listings/:listingId` em `listings/http/my-listings.controller.ts` (qualquer status, com `rejectionReason`) | `get-listing.spec.ts`, `projection.int-spec.ts`, `test/listing-queries.e2e-spec.ts` |
+| **Contrato da API documentado** | Swagger em `/docs` (DTOs em `listings/http/listing.dto.ts`) e as seções "API de escrita" e "API de leitura" abaixo | — |
+| **Persistência** | Drizzle: schema em `listings/infrastructure/schema.ts`, migrations em `drizzle/` | `*.int-spec.ts` de `listings/infrastructure/` (Postgres real) |
+
+As regras de transição de status ficam em `listings/domain/listing-status.ts` (testadas em `listing-status.spec.ts`).
+
 ## Como rodar
 
 Requisitos: Node 22 (`nvm use`), pnpm e Docker.
@@ -143,6 +158,31 @@ Com `OTEL_EXPORTER_OTLP_ENDPOINT` definido (já no `.env.example`), API e worker
 | `pnpm test` | Unitários (`*.spec.ts`) |
 | `pnpm test:e2e` | HTTP com o app Nest (`test/*.e2e-spec.ts`); usa o Postgres do Compose, com `pnpm db:migrate` já aplicado |
 | `pnpm test:int` | Integração com Postgres real via Testcontainers (`*.int-spec.ts`); exige Docker |
+
+### Coleção do Postman (e2e contra a stack rodando)
+
+[`postman/listings-api.postman_collection.json`](postman/listings-api.postman_collection.json) testa todos os endpoints contra a API real, incluindo a moderação assíncrona:
+
+- fluxo aprovado: rascunho → revisão → publicado → nova versão → arquivado;
+- fluxo reprovado: o motivo aparece só para o dono; depois o anúncio é corrigido e republicado;
+- validações e erros: `400`, `401`, `404` e `409`;
+- listagem: paginação e filtro por categoria.
+
+As etapas "Aguardar" repetem a requisição até o worker concluir a moderação ou a projeção. Por isso, rode a coleção inteira, em ordem: no Collection Runner do Postman ou no Newman. A coleção cria anúncios no banco local.
+
+Com o Compose, a API e o worker no ar:
+
+```bash
+pnpm auth:token postman-seller          # token do vendedor
+pnpm auth:token postman-other-seller    # token de outro vendedor (testes de acesso)
+pnpm test:postman \
+  --env-var "token=<token do vendedor>" \
+  --env-var "otherToken=<token do outro vendedor>"
+```
+
+O `newman` já vem nas dependências de desenvolvimento; `pnpm test:postman` repassa ao Newman qualquer opção extra, como `--folder "3. Validações e erros"` para rodar só uma pasta.
+
+No Postman, importe o arquivo e preencha as variáveis `token` e `otherToken` da coleção. Alternativa: preencher `jwtSecret` com o `JWT_SECRET` do `.env` faz a coleção assinar os dois tokens sozinha; evite, porque o segredo sai do `.env`. `baseUrl` (padrão `http://localhost:3000`) muda o endereço da API.
 
 ## Outros comandos
 

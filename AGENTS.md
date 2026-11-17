@@ -114,6 +114,7 @@ Em `backend/implementation/`, com Node 22 (`nvm use`):
 | `pnpm build` | Compila para `dist/` (`main.js` e `worker.js`) |
 | `pnpm typecheck` · `pnpm lint` · `pnpm format` | Tipos, oxlint, Prettier |
 | `pnpm test` · `pnpm test:e2e` · `pnpm test:int` | Unitários (`*.spec.ts`) · e2e (`test/*.e2e-spec.ts`) · integração com Postgres via Testcontainers (`*.int-spec.ts`, exige Docker) |
+| `pnpm test:postman --env-var token=… --env-var otherToken=…` | Coleção do Postman (`postman/`) via Newman contra a API e o worker rodando |
 | `pnpm db:migrate` · `pnpm db:reset` · `pnpm db:generate` | Aplica migrations · apaga e recria o banco (nunca em produção) · gera migration a partir do schema Drizzle |
 | `pnpm moderation:reprocess` | Reenfileira os jobs de moderação que falharam definitivamente (exige Redis) |
 | `pnpm auth:token <sellerId> [--expires-in 24h]` | Emite um JWT HS256 (`sub` = `seller_id`); exige `JWT_SECRET` (≥ 32 caracteres) |
