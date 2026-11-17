@@ -1,6 +1,19 @@
 # Dependências locais do serviço de anúncios.
-# API e worker rodam no host (pnpm start:dev / start:worker:dev) até ganharem imagem própria.
+# Por padrão sobem só as dependências e a API/worker rodam no host (pnpm start:dev / start:worker:dev).
+# Para subir tudo em containers: docker compose --profile app up -d --build --wait
 name: listings
+
+x-app: &app
+  profiles: [app]
+  build: .
+  environment: &app-env
+    NODE_ENV: production
+    PORT: 3000
+    DATABASE_URL: postgres://${POSTGRES_USER:-listings}:${POSTGRES_PASSWORD:-listings}@postgres:5432/${POSTGRES_DB:-listings}
+    REDIS_URL: redis://redis:6379
+    MODERATION_API_URL: http://moderation-api:8787
+    JWT_SECRET: ${JWT_SECRET:?defina JWT_SECRET no .env (mínimo de 32 caracteres)}
+    OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-lgtm:4318
 
 services:
   postgres:
@@ -45,6 +58,40 @@ services:
     cap_drop:
       - ALL
 
+  # Aplica as migrations e termina; API e worker esperam por ele.
+  migrate:
+    <<: *app
+    command: ["node", "dist/cli/db.js", "migrate"]
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  api:
+    <<: *app
+    environment:
+      <<: *app-env
+      OTEL_SERVICE_NAME: listings-api
+    ports:
+      - "${API_PORT:-3000}:3000"
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  worker:
+    <<: *app
+    command: ["node", "dist/worker.js"]
+    environment:
+      <<: *app-env
+      OTEL_SERVICE_NAME: listings-worker
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+      moderation-api: { condition: service_healthy }
+
   # Coletor OTel + Prometheus + Tempo + Loki + Grafana num único container.
   otel-lgtm:
     image: grafana/otel-lgtm:0.40.0
@@ -54,6 +101,9 @@ services:
       - "4318:4318" # OTLP HTTP
     volumes:
       - lgtm-data:/data
+      # Painel da fila de moderação, provisionado por arquivo.
+      - ./grafana/dashboards.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/listings.yaml:ro
+      - ./grafana/moderation-queue.json:/otel-lgtm/listings-dashboards/moderation-queue.json:ro
 
 volumes:
   postgres-data:

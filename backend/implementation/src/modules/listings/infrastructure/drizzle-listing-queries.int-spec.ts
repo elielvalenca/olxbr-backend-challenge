@@ -92,6 +92,18 @@ describe('DrizzleListingQueries', () => {
       );
     });
 
+    it('cada anúncio traz a própria capa, não a de outro', async () => {
+      const first = await publish(1, {}, [0]);
+      const second = await publish(2, {}, [3, 1]);
+
+      const { items } = await queries.listPublished({ offset: 0, limit: 10 });
+
+      const coverOf = (id: string) =>
+        items.find((i) => i.listingId === id)?.coverImageUrl;
+      expect(coverOf(first)).toBe(`https://cdn.example.com/${first}/1/0.jpg`);
+      expect(coverOf(second)).toBe(`https://cdn.example.com/${second}/1/1.jpg`);
+    });
+
     it('pagina com total independente da página', async () => {
       for (let i = 1; i <= 5; i++) await publish(i);
 

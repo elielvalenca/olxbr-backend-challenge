@@ -129,6 +129,13 @@ Decisões técnicas, alternativas descartadas, ambiguidades e trade-offs. A orde
 - **Trade-off:** consistência eventual (a janela é o intervalo do relay mais o processamento: após publicar uma nova versão ou arquivar, o público pode ver o estado antigo por instantes), em troca de menos carga no banco e de uma leitura que nunca depende do Redis.
 - **A confirmar:** validade da chave de 24 h (`DETAIL_CACHE_TTL_SECONDS`, motivo técnico: `noeviction` sem TTL só cresce) e timeout de leitura de 200 ms (`DETAIL_CACHE_TIMEOUT_MS`) foram propostos pela IA, sem decisão explícita.
 
+### D20 — Seed, imagem Docker e observabilidade (chores, sem change)
+- **Contexto:** faltavam o seed, a imagem de API/worker e a observabilidade prometidas na SPEC; todos são `chore`, sem regra de negócio nova.
+- **Escolha:** (1) o seed é um script que chama a API por HTTP (cria e envia para revisão como um vendedor), então exercita o fluxo real inteiro, e recusa rodar se já houver anúncios publicados (`--force` ignora). (2) Uma imagem única (build multi-stage) para API e worker, com serviços `api`, `worker` e `migrate` atrás do profile `app` do Compose, para não conflitar com `pnpm start:dev` no host. (3) OpenTelemetry ligado só se `OTEL_EXPORTER_OTLP_ENDPOINT` estiver definido; traços de HTTP, Postgres e Redis; métricas de filas (profundidade por estado), jobs por resultado, latência da chamada à moderação, estado do circuit breaker e outbox, mostradas num único painel provisionado por arquivo. Verifiquei tudo subindo a stack completa: 57 anúncios semeados e publicados, projeção no Redis para os 57, métricas e traços no Grafana.
+- **Alternativas consideradas:** seed direto no banco ou pelos casos de uso — descartado: não passaria pela API nem pela fila. Subir API e worker por padrão no Compose — descartado: conflita com o fluxo de desenvolvimento no host (porta 3000). `auto-instrumentations-node` — descartado: instrumentações a mais do que as três de que preciso, e muitas dependências.
+- **Trade-off:** o seed depende da API rodando e não é idempotente além da checagem simples; em troca, valida o caminho completo.
+- **Débito:** `listing-authoring` e `listing-lifecycle` têm requisitos com mais de 500 caracteres (aviso do `openspec validate --strict`); não alterei o texto deles.
+
 ## Débitos técnicos
 
 - **Sem rotina de limpeza do outbox:** não configuramos retenção das mensagens publicadas nem `OutboxInbox.prune()`; dead letters só são expurgadas manualmente (`OutboxDeadLetters.purge`). Em produção: rotina de expurgo por idade.
@@ -145,7 +152,7 @@ Decisões técnicas, alternativas descartadas, ambiguidades e trade-offs. A orde
 
 ## Tempo gasto
 
-<!-- Estimado a partir da timeline. -->
+Cerca de 5 h de trabalho no registro da timeline (19:02 → 00:00 em 16/11/2026, com pausas; valor aproximado).
 
 ## O que faria diferente com mais tempo
 

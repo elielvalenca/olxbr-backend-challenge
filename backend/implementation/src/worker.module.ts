@@ -3,6 +3,7 @@ import { AppConfigModule } from './shared/config/config.module.js';
 import { ProjectionModule } from './modules/projection/projection.module.js';
 import { ModerationModule } from './modules/moderation/moderation.module.js';
 import { DatabaseModule } from './shared/database/database.module.js';
+import { WorkerMetricsModule } from './shared/observability/worker-metrics.module.js';
 import { WorkerOutboxModule } from './shared/outbox/worker-outbox.module.js';
 
 /**
@@ -16,6 +17,7 @@ import { WorkerOutboxModule } from './shared/outbox/worker-outbox.module.js';
     WorkerOutboxModule,
     ModerationModule,
     ProjectionModule,
+    WorkerMetricsModule,
   ],
 })
 export class WorkerModule {}

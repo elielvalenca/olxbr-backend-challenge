@@ -30,11 +30,13 @@ export class DrizzleListingQueries implements ListingQueries {
           priceCents: listings.priceCents,
           category: listings.category,
           publishedAt: listings.publishedAt,
+          // Colunas qualificadas à mão: dentro de `sql` o Drizzle as emite sem o nome
+          // da tabela, e a comparação viraria "listing_id = listing_id" (sempre verdadeira).
           coverImageUrl: sql<string | null>`(
-            select ${listingImages.url} from ${listingImages}
-            where ${listingImages.listingId} = ${listings.listingId}
-              and ${listingImages.version} = ${listings.version}
-            order by ${listingImages.position} limit 1
+            select i.url from listing_images i
+            where i.listing_id = listings.listing_id
+              and i.version = listings.version
+            order by i.position limit 1
           )`,
         })
         .from(listings)

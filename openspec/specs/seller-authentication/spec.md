@@ -1,7 +1,7 @@
 # seller-authentication Specification
 
 ## Purpose
-TBD - created by archiving change listing-lifecycle. Update Purpose after archive.
+Define como os endpoints de escrita identificam o vendedor por um token JWT HS256, cujo `sub` é o identificador do vendedor.
 
 ## Requirements
 

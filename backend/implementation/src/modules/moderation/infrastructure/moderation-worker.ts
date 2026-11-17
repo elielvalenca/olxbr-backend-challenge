@@ -8,6 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { UnrecoverableError, Worker, type Job } from 'bullmq';
 import type { Env } from '../../../shared/config/env.js';
+import { moderationJobs } from '../../../shared/observability/metrics.js';
 import { redisConnection } from '../../../shared/queue/redis-connection.js';
 import {
   LISTING_REPOSITORY,
@@ -70,7 +71,8 @@ export class ModerationWorker
   private async process(job: Job<VersionRef>): Promise<void> {
     const { listingId, version } = job.data;
     try {
-      await this.moderate.execute({ listingId, version });
+      const outcome = await this.moderate.execute({ listingId, version });
+      moderationJobs.add(1, { result: outcome });
     } catch (error) {
       if (error instanceof ModerationUnavailableError) {
         // Pausa o worker e devolve o job à fila sem gastar tentativa.
@@ -92,6 +94,7 @@ export class ModerationWorker
       job.attemptsMade >= (job.opts.attempts ?? 1);
     if (!exhausted) return;
     const { listingId, version } = job.data;
+    moderationJobs.add(1, { result: 'failed' });
     this.logger.error(
       `Moderação falhou de vez: ${listingId} v${version}: ${error.message}`,
     );

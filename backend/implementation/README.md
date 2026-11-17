@@ -2,7 +2,7 @@
 
 Serviço de inserção, listagem, detalhe e moderação assíncrona de anúncios.
 
-> Em construção. Especificação em [`SPEC.md`](SPEC.md); decisões em [`../../DECISIONS.md`](../../DECISIONS.md); planejamento por changes em [`../../openspec/`](../../openspec/).
+> Especificação em [`SPEC.md`](SPEC.md); decisões em [`../../DECISIONS.md`](../../DECISIONS.md); planejamento por changes em [`../../openspec/`](../../openspec/).
 
 ## Como rodar
 
@@ -15,7 +15,16 @@ pnpm install
 pnpm db:migrate               # aplica as migrations
 pnpm start:dev                # API em http://localhost:3000 (Swagger em /docs)
 pnpm start:worker:dev         # worker (processo separado, mesma base de código)
+pnpm seed                     # opcional: cria os 57 anúncios do mock e os envia para moderação (API rodando)
 ```
+
+Para subir tudo em containers (API, worker e migrations, a partir do `Dockerfile`), em vez de `pnpm start:*`:
+
+```bash
+docker compose --profile app up -d --build --wait   # API em :3000 (API_PORT muda a porta no host)
+```
+
+A API e o worker são a mesma imagem com dois comandos (`dist/main.js` e `dist/worker.js`); o serviço `migrate` aplica as migrations e termina. O Compose exige `JWT_SECRET` no `.env`.
 
 ## Banco de dados
 
@@ -118,6 +127,14 @@ Corpo de criação (e, parcialmente, de edição):
 - **Consistência eventual:** após publicar uma nova versão ou arquivar, o público pode ver o estado antigo até o relay (`OUTBOX_POLL_INTERVAL_MS`) e o worker rodarem.
 - **Validade:** `DETAIL_CACHE_TTL_SECONDS` (padrão 24 h). O Redis roda com `noeviction` (exigência do BullMQ), então a validade limita a memória e corrige uma mensagem perdida.
 - O detalhe do dono (`/me/listings/:id`) e a listagem não passam pela projeção.
+
+## Seed
+
+`pnpm seed` lê `../api-mock/seed/ads.json` (57 anúncios, sem imagens), cria cada um como `draft` e o envia para revisão pela API, como um vendedor (`seed-seller`) faria: o fluxo real (outbox → fila → moderação → projeção) roda e alimenta o painel. Preço convertido de reais para centavos e uma imagem placeholder (`picsum.photos`) por anúncio. A API precisa estar rodando (`API_URL`, padrão `http://localhost:$PORT`). O script recusa rodar se já houver anúncios publicados; `--force` ignora a checagem, e `pnpm db:reset` limpa o banco.
+
+## Observabilidade
+
+Com `OTEL_EXPORTER_OTLP_ENDPOINT` definido (já no `.env.example`), API e worker exportam traços (HTTP, Postgres e Redis) e métricas por OTLP para o `grafana/otel-lgtm` do Compose; sem a variável, a instrumentação fica desligada. O Grafana (`http://localhost:3001`, `admin`/`admin`) traz o painel **Fila de moderação**, provisionado por `grafana/`: profundidade das filas por estado, jobs por resultado (`published`, `rejected`, `ignored`, `failed`), latência da chamada à moderação (p50/p95), estado do circuit breaker e pendências/atraso do outbox. A instrumentação OTel do NestJS ainda não suporta o v12 e não é usada.
 
 ## Testes
 

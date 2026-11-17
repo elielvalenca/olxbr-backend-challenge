@@ -27,7 +27,8 @@
     "db:migrate": "nest build && node --env-file-if-exists=.env dist/cli/db.js migrate",
     "db:reset": "nest build && node --env-file-if-exists=.env dist/cli/db.js reset",
     "moderation:reprocess": "nest build && node --env-file-if-exists=.env dist/cli/reprocess-moderation.js",
-    "auth:token": "nest build && node --env-file-if-exists=.env dist/cli/token.js"
+    "auth:token": "nest build && node --env-file-if-exists=.env dist/cli/token.js",
+    "seed": "nest build && node --env-file-if-exists=.env dist/cli/seed.js"
   },
   "dependencies": {
     "@nestjs/bullmq": "^12.0.2",
@@ -40,6 +41,14 @@
     "@nestjs/platform-express": "^12.5.0",
     "@nestjs/resilience": "^0.0.3",
     "@nestjs/swagger": "^12.1.2",
+    "@opentelemetry/api": "^1.10.0",
+    "@opentelemetry/exporter-metrics-otlp-http": "^0.301.2",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.301.2",
+    "@opentelemetry/instrumentation-http": "^0.301.2",
+    "@opentelemetry/instrumentation-ioredis": "^0.73.0",
+    "@opentelemetry/instrumentation-pg": "^0.78.0",
+    "@opentelemetry/sdk-metrics": "^3.1.1",
+    "@opentelemetry/sdk-node": "^0.301.2",
     "bullmq": "^6.7.6",
     "drizzle-orm": "^0.45.4",
     "ioredis": "^6.0.0",

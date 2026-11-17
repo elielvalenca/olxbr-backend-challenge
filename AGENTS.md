@@ -108,7 +108,7 @@ Em `backend/implementation/`, com Node 22 (`nvm use`):
 | Comando | O que faz |
 | --- | --- |
 | `cp .env.example .env` | Configuração local |
-| `docker compose up -d --wait` | Postgres, Redis, mock da moderação (`:8787`) e Grafana/OTel (`:3001`) |
+| `docker compose up -d --wait` | Postgres, Redis, mock da moderação (`:8787`) e Grafana/OTel (`:3001`); `--profile app --build` sobe também API, worker e migrations a partir do `Dockerfile` |
 | `pnpm install` | Instala dependências |
 | `pnpm start:dev` / `pnpm start:worker:dev` | API (Swagger em `/docs`) / worker, em modo watch |
 | `pnpm build` | Compila para `dist/` (`main.js` e `worker.js`) |
@@ -118,6 +118,6 @@ Em `backend/implementation/`, com Node 22 (`nvm use`):
 | `pnpm moderation:reprocess` | Reenfileira os jobs de moderação que falharam definitivamente (exige Redis) |
 | `pnpm auth:token <sellerId> [--expires-in 24h]` | Emite um JWT HS256 (`sub` = `seller_id`); exige `JWT_SECRET` (≥ 32 caracteres) |
 
-_A completar: seed._
+`pnpm seed` (API rodando) cria os anúncios de `api-mock/seed/ads.json` pela API e os envia para moderação.
 
 Migrations: o histórico único é `drizzle/` (inclui o SQL do `@nestjs/outbox`). Nunca edite uma migration já criada; gere uma nova.

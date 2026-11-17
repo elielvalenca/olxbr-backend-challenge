@@ -93,3 +93,11 @@ Horários no fuso local. Detalhes das decisões em [DECISIONS.md](DECISIONS.md);
 - `23:51` **decisao** — D19 — projeção do detalhe: só published/archived geram evento, job idempotente, relay compartilhado roteando por tópico; TTL 24h e timeout 200ms a confirmar
 - `23:51` **validacao** — detail-projection: typecheck, lint, build, 85 unit, 31 e2e, 114 int (Postgres+Redis reais) e openspec validate passando
 - `23:52` **marco** — detail-projection commitado e arquivado; última change concluída
+
+## 2026-11-17
+
+- `00:01` **pedido** — seguir com todos os pontos pendentes (seed, observabilidade, Dockerfile/compose, Purposes) em um único commit
+- `00:01` **decisao** — D20 — seed via API HTTP; imagem única com profile app; OTel só com OTEL_EXPORTER_OTLP_ENDPOINT; painel único da fila
+- `00:01` **correcao-ia** — WorkerMetricsModule registrava ResilienceModule.forRoot() de novo; os testes não pegaram, o boot do worker em container falhou; corrigido e coberto no teste de pipeline
+- `00:01` **validacao** — stack completa no Compose: 57 anúncios semeados e publicados, 57 projeções no Redis, métricas e traços no Grafana, painel provisionado
+- `00:04` **correcao-ia** — capa da listagem: subconsulta com colunas sem qualificar comparava listing_id consigo mesmo; só apareceu com o seed (anúncios com imagens diferentes); corrigido com colunas qualificadas e teste de regressão

@@ -7,6 +7,7 @@ import {
   type ResiliencePolicy,
 } from '@nestjs/resilience';
 import type { Env } from '../../../shared/config/env.js';
+import { moderationCallDuration } from '../../../shared/observability/metrics.js';
 import type { ListingContent } from '../../listings/application/listing-repository.js';
 import {
   ModerationInvalidRequestError,
@@ -65,11 +66,14 @@ export class HttpModerationGateway implements ModerationGateway {
   }
 
   async check(content: ListingContent): Promise<ModerationVerdict> {
+    const startedAt = performance.now();
+    let outcome = 'ok';
     try {
       return await this.policy.execute((attempt) =>
         this.post(content, attempt.signal),
       );
     } catch (error) {
+      outcome = 'error';
       if (error instanceof ResilienceTimeoutError) {
         throw new ModerationTransientError('Tempo limite da moderação');
       }
@@ -80,6 +84,8 @@ export class HttpModerationGateway implements ModerationGateway {
         );
       }
       throw error;
+    } finally {
+      moderationCallDuration.record(performance.now() - startedAt, { outcome });
     }
   }
 

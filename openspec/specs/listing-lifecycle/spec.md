@@ -1,7 +1,7 @@
 # listing-lifecycle Specification
 
 ## Purpose
-TBD - created by archiving change listing-lifecycle. Update Purpose after archive.
+Define os status do anúncio, as transições permitidas e quem as executa, incluindo o envio para revisão e o arquivamento.
 
 ## Requirements
 

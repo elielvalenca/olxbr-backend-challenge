@@ -31,6 +31,7 @@ import { MODERATION_QUEUE } from '../../shared/queue/queues.js';
 import { reprocessFailedModerations } from './infrastructure/reprocess-failed.js';
 import { ProjectionModule } from '../projection/projection.module.js';
 import { DrizzleListingQueries } from '../listings/infrastructure/drizzle-listing-queries.js';
+import { WorkerMetricsModule } from '../../shared/observability/worker-metrics.module.js';
 import { WorkerOutboxModule } from '../../shared/outbox/worker-outbox.module.js';
 import { ModerationModule } from './moderation.module.js';
 
@@ -91,6 +92,7 @@ describe('pipeline de moderação', () => {
         WorkerOutboxModule,
         ModerationModule,
         ProjectionModule,
+        WorkerMetricsModule,
       ],
     }).compile();
     await app.init();

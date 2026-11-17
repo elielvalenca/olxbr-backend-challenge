@@ -1,7 +1,7 @@
 # listing-authoring Specification
 
 ## Purpose
-TBD - created by archiving change listing-lifecycle. Update Purpose after archive.
+Define como o vendedor autenticado cria e edita anúncios, com as validações de conteúdo e a regra de edição no lugar ou em nova versão.
 
 ## Requirements
 
